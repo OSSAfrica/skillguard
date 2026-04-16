@@ -13,7 +13,7 @@ This guide covers how to set up a development environment for SkillGuard.
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/skillguard/skillguard.git
+git clone https://github.com/OSSAfrica/skillguard.git
 cd skillguard
 ```
 

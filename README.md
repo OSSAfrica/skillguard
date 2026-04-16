@@ -1,12 +1,8 @@
 # SkillGuard
 
-[//]: # ([![Go Version]&#40;https://img.shields.io/github/go-mod/go-version/ossafrica/skillguard&#41;]&#40;https://github.com/ossafrica/skillguard&#41;)
-
-[//]: # ([![License]&#40;https://img.shields.io/github/license/skillguard/skillguard&#41;]&#40;LICENSE&#41;)
-
-[//]: # ([![Build Status]&#40;https://img.shields.io/github/actions/workflow/status/skillguard/skillguard/scan.yml&#41;]&#40;.github/workflows/scan.yml&#41;)
-
-[//]: # ([![Docker]&#40;https://img.shields.io/docker/pulls/skillguard/skillguard&#41;]&#40;https://hub.docker.com/r/skillguard/skillguard&#41;)
+[![Go Version](https://img.shields.io/github/go-mod/go-version/OSSAfrica/skillguard)](https://github.com/OSSAfrica/skillguard)
+[![License](https://img.shields.io/github/license/OSSAfrica/skillguard)](LICENSE)
+[![Docker](https://img.shields.io/docker/pulls/OSSAfrica/skillguard)](https://hub.docker.com/r/OSSAfrica/skillguard)
 
 SkillGuard is a security scanner for AI agent "skills" defined in Markdown. It evaluates skill definitions for security risks, malicious intents, and supply chain vulnerabilities, providing transparency to developers and end-users.
 
@@ -40,7 +36,7 @@ SkillGuard provides the first line of defense by analyzing skill definitions bef
 
 ### Binary (Recommended)
 
-Download the latest release for your platform from the [releases page](https://github.com/skillguard/skillguard/releases).
+Download the latest release for your platform from the [releases page](https://github.com/OSSAfrica/skillguard/releases).
 
 ### Homebrew
 
@@ -57,7 +53,7 @@ docker pull skillguard/skillguard:latest
 ### Build from source
 
 ```bash
-git clone https://github.com/skillguard/skillguard.git
+git clone https://github.com/OSSAfrica/skillguard.git
 cd skillguard
 go build -o skillguard .
 ```

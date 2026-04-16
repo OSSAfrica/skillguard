@@ -15,7 +15,7 @@ var rootCmd = &cobra.Command{
 	Long: `SkillGuard analyzes Markdown-based AI skill definitions for security vulnerabilities, dangerous permissions, and supply chain risks.
 
 Version: ` + version + `
-Documentation: https://github.com/skillguard/skillguard`,
+Documentation: https://github.com/OSSAfrica/skillguard`,
 	Version: version,
 }
 
