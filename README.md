@@ -3,6 +3,7 @@
 [![Go Version](https://img.shields.io/github/go-mod/go-version/OSSAfrica/skillguard)](https://github.com/OSSAfrica/skillguard)
 [![License](https://img.shields.io/github/license/OSSAfrica/skillguard)](LICENSE)
 [![Docker](https://img.shields.io/docker/pulls/OSSAfrica/skillguard)](https://hub.docker.com/r/OSSAfrica/skillguard)
+[![Version](https://img.shields.io/github/v/release/OSSAfrica/skillguard)](https://github.com/OSSAfrica/skillguard/releases)
 
 SkillGuard is a security scanner for AI agent "skills" defined in Markdown. It evaluates skill definitions for security risks, malicious intents, and supply chain vulnerabilities, providing transparency to developers and end-users.
 
@@ -20,13 +21,17 @@ SkillGuard provides the first line of defense by analyzing skill definitions bef
 ## Features
 
 - **YAML frontmatter parsing** - Extracts skill metadata from Markdown files
-- **Security scoring** - 100-point scoring system with detailed findings
+- **Multi-category security scoring** - Weighted scoring with exponential decay
 - **Risk detection**:
   - Shell command execution patterns
   - Credential and secret exposure
   - Unrestricted tool access (wildcards)
   - Prompt injection vectors
   - Untrusted external URLs
+  - Obfuscated code (eval, Function, setTimeout)
+  - HTTP/Git dependencies
+  - Hidden characters (zero-width, RTL override, homoglyphs)
+  - Referenced script analysis (scans .py, .js, .ts, .sh files)
   - Missing metadata (transparency gaps)
 - **CI/CD integration** - Threshold-based exit codes for automated pipelines
 - **Multiple output formats** - Colored CLI output and JSON reports
@@ -47,7 +52,7 @@ brew install skillguard/skillguard/skillguard
 ### Docker
 
 ```bash
-docker pull skillguard/skillguard:latest
+docker pull OSSAfrica/skillguard:latest
 ```
 
 ### Build from source
@@ -120,20 +125,56 @@ skillguard config show
 
 ## Security Scoring
 
-Skills start with a score of 100 and receive deductions for identified risks:
+SkillGuard uses a multi-category scoring system with weighted averages. Skills start with 100 points in each category, with deductions based on severity and exponential decay for repeated findings.
 
-| Category | Risk | Deduction |
-|----------|------|-----------|
-| Tool Access | Unrestricted wildcard access | -15 per finding |
-| Shell Execution | Command execution patterns | -20 per finding |
-| File Access | File write/delete operations | -15 per finding |
-| Network | Untrusted external URLs | -10 per finding |
-| Credentials | Secret/credential references | -20 per finding |
-| Prompt Injection | Dynamic prompt construction | -15 per finding |
-| Supply Chain | No source URL provided | -10 |
-| Metadata | Missing description/triggers | -5 each |
+### Score Categories
+
+| Category | Weight | Description |
+|----------|--------|-------------|
+| Security | 3.0 | Shell access, file access, credentials, obfuscated code |
+| Supply Chain | 2.0 | External scripts, git/http dependencies, source verification |
+| Transparency | 1.5 | Metadata completeness, prompt injection risks |
+| Quality | 1.5 | Tool access patterns, allowed tools |
+| Maintenance | 1.0 | Telemetry, protestware detection |
+
+### Severity Levels
+
+| Level | Base Deduction | Decay Factor |
+|-------|----------------|--------------|
+| Critical | 40 | e^-10x |
+| High | 20 | e^-x |
+| Medium | 10 | e^-x/20 |
+| Low | 5 | e^-x/40 |
+
+### Detection Categories
+
+| Category | Risk | Severity |
+|----------|------|----------|
+| Shell Execution | Command execution patterns | High/Critical |
+| File Access | File write/delete operations | High |
+| Network | Untrusted external URLs | Medium |
+| Credentials | Secret/credential references | High |
+| Obfuscated Code | eval, Function, setTimeout patterns | Critical |
+| HTTP Dependencies | curl/wget with pipe to shell | Critical |
+| Git Dependencies | Git clone/fetch operations | Medium |
+| Hidden Characters | Zero-width, RTL, homoglyphs | High |
+| Prompt Injection | Dynamic prompt construction | Medium |
+| Supply Chain | No source URL provided | Low |
+| Metadata | Missing description/triggers | Low |
 
 A score of 70 or higher is considered passing by default.
+
+### Example Output
+
+```
+Score: 77/100
+Category Scores:
+  security: 62/100 (3 findings)
+  supply_chain: 55/100 (2 findings)
+  quality: 100/100
+  maintenance: 100/100
+  transparency: 95/100 (1 findings)
+```
 
 ## Trusted Domains
 
@@ -151,7 +192,7 @@ External URLs to domains not in this list are flagged as medium-risk.
 ### Scan local skills
 
 ```bash
-docker run --rm -v ~/path/to/skills:/skills skillguard/skillguard scan --path /skills
+docker run --rm -v ~/path/to/skills:/skills OSSAfrica/skillguard scan --path /skills
 ```
 
 ### CI/CD Integration

@@ -6,7 +6,7 @@
 # Customize the 'path' argument below to point to your skills directory.
 
 skillguard_scan:
-  image: skillguard/skillguard:latest
+  image: OSSAfrica/skillguard:latest
   script:
     - skillguard scan --path ./skills --threshold 70 --output skillguard-report.json
   artifacts:

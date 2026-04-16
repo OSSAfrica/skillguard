@@ -9,7 +9,7 @@
 
 services:
   skillguard:
-    image: skillguard/skillguard:latest
+    image: OSSAfrica/skillguard:latest
     volumes:
       - ./skills:/skills:ro
       - ./reports:/reports
@@ -18,7 +18,7 @@ services:
 
   # Alternative: Interactive mode - runs scan and keeps container alive
   skillguard-interactive:
-    image: skillguard/skillguard:latest
+    image: OSSAfrica/skillguard:latest
     volumes:
       - ./skills:/skills:ro
     stdin_open: true
@@ -27,7 +27,7 @@ services:
 
   # Example: Scan multiple paths
   skillguard-multi:
-    image: skillguard/skillguard:latest
+    image: OSSAfrica/skillguard:latest
     volumes:
       - ~/.agents/skills:/agent-skills:ro
       - ~/.claude/skills:/claude-skills:ro

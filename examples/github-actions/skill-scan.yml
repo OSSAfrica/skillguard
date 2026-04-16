@@ -24,7 +24,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Run SkillGuard scan
-        uses: docker://skillguard/skillguard:latest
+        uses: docker://OSSAfrica/skillguard:latest
         with:
           args: scan --path ./skills --threshold 70 --output skillguard-report.json
 

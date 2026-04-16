@@ -21,7 +21,10 @@ Documentation: https://github.com/OSSAfrica/skillguard`,
 
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		_, err := fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		if err != nil {
+			return
+		}
 		os.Exit(2)
 	}
 }

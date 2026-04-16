@@ -166,10 +166,23 @@ func printSkillResult(r *model.AnalysisResult) {
 		color.Red("✗ %s", r.SkillName)
 	}
 
-	scoreColor := getScoreColor(r.Score)
-	scoreColor.Printf("  Score: %d/100", r.Score)
+	scoreColor := getScoreColor(r.OverallScore)
+	scoreColor.Printf("  Score: %d/100", r.OverallScore)
 	fmt.Println()
 	fmt.Printf("  File: %s\n", r.FilePath)
+
+	if len(r.CategoryScores) > 0 {
+		fmt.Println("  Category Scores:")
+		for _, cs := range r.CategoryScores {
+			catColor := getCategoryScoreColor(cs.Score)
+			catColor.Printf("    %s: %d/100", cs.Category, cs.Score)
+			if cs.Findings > 0 {
+				fmt.Printf(" (%d findings)\n", cs.Findings)
+			} else {
+				fmt.Println()
+			}
+		}
+	}
 
 	if !r.Passed && len(r.Findings) > 0 {
 		fmt.Println("  Findings:")
@@ -185,6 +198,15 @@ func printSkillResult(r *model.AnalysisResult) {
 		}
 	}
 	fmt.Println()
+}
+
+func getCategoryScoreColor(score int) *color.Color {
+	if score >= 80 {
+		return color.New(color.FgGreen)
+	} else if score >= 60 {
+		return color.New(color.FgYellow)
+	}
+	return color.New(color.FgRed)
 }
 
 func getScoreColor(score int) *color.Color {
