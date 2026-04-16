@@ -158,9 +158,15 @@ External URLs to domains not in this list are flagged as medium-risk.
 docker run --rm -v ~/path/to/skills:/skills skillguard/skillguard scan --path /skills
 ```
 
-### CI/CD with GitHub Actions
+### CI/CD Integration
 
-See [.github/workflows/scan.yml](.github/workflows/scan.yml) for a complete example.
+Copy the appropriate example to your skill repository:
+
+| Platform | Example Location |
+|----------|------------------|
+| GitHub Actions | `examples/github-actions/skill-scan.yml` |
+| GitLab CI | `examples/gitlab-ci/.gitlab-ci.yml` |
+| Docker Compose | `examples/docker/docker-compose.yml` |
 
 ## Project Structure
 
@@ -174,7 +180,10 @@ skillguard/
 │   ├── model/         # Data structures
 │   ├── parser/        # Markdown/YAML parsing
 │   └── analyzer/      # Security scoring engine
-├── .github/           # GitHub Actions workflows
+├── examples/          # CI/CD integration examples
+│   ├── github-actions/
+│   ├── gitlab-ci/
+│   └── docker/
 ├── Dockerfile         # Container image definition
 └── main.go           # Application entry
 ```

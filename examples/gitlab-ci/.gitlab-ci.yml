@@ -1,0 +1,24 @@
+# SkillGuard Security Scan
+#
+# Copy this file to your skill repository at:
+#   .gitlab-ci.yml
+#
+# Customize the 'path' argument below to point to your skills directory.
+
+skillguard_scan:
+  image: skillguard/skillguard:latest
+  script:
+    - skillguard scan --path ./skills --threshold 70 --output skillguard-report.json
+  artifacts:
+    when: always
+    paths:
+      - skillguard-report.json
+    reports:
+      junit: skillguard-report.json
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes:
+        - '**/*.md'
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      changes:
+        - '**/*.md'

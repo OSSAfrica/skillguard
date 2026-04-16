@@ -1,0 +1,38 @@
+# SkillGuard Docker Compose Example
+#
+# Use this to run SkillGuard locally for testing or development.
+#
+# Usage:
+#   docker-compose up
+#
+# This will scan the ./skills directory and output results to the terminal.
+
+services:
+  skillguard:
+    image: skillguard/skillguard:latest
+    volumes:
+      - ./skills:/skills:ro
+      - ./reports:/reports
+    working_dir: /app
+    command: scan --path /skills --threshold 70 --output /reports/report.json
+
+  # Alternative: Interactive mode - runs scan and keeps container alive
+  skillguard-interactive:
+    image: skillguard/skillguard:latest
+    volumes:
+      - ./skills:/skills:ro
+    stdin_open: true
+    tty: true
+    command: ["scan", "--path", "/skills", "--threshold", "70"]
+
+  # Example: Scan multiple paths
+  skillguard-multi:
+    image: skillguard/skillguard:latest
+    volumes:
+      - ~/.agents/skills:/agent-skills:ro
+      - ~/.claude/skills:/claude-skills:ro
+    command: >
+      scan
+      --path /agent-skills,/claude-skills
+      --threshold 70
+      --output /reports/multi-scan.json
