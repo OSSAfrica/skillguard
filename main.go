@@ -1,10 +1,9 @@
 package main
 
 import (
-	"fmt"
+	"skillguard/cmd"
 )
 
 func main() {
-	s := "gopher"
-	fmt.Printf("Hello and welcome, %s!\n", s)
+	cmd.Execute()
 }
