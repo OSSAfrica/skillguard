@@ -66,7 +66,7 @@ var (
 		regexp.MustCompile(`(?i)process\.env\.[A-Z_]+`),
 	}
 
-	urlPattern = regexp.MustCompile(`https?://[^\s\)\"\'\>]+\.?(?:\s|$)`)
+	urlPattern = regexp.MustCompile(`https?://[^\s)"'>]+\.?(?:\s|$)`)
 
 	injectionPatterns = []*regexp.Regexp{
 		regexp.MustCompile(`(?i)(concat|join|interpolate|format)\s*\([^)]*user`),
