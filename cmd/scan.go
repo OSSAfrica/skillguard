@@ -167,7 +167,10 @@ func printSkillResult(r *model.AnalysisResult) {
 	}
 
 	scoreColor := getScoreColor(r.OverallScore)
-	scoreColor.Printf("  Score: %d/100", r.OverallScore)
+	_, err := scoreColor.Printf("  Score: %d/100", r.OverallScore)
+	if err != nil {
+		return
+	}
 	fmt.Println()
 	fmt.Printf("  File: %s\n", r.FilePath)
 
@@ -175,7 +178,10 @@ func printSkillResult(r *model.AnalysisResult) {
 		fmt.Println("  Category Scores:")
 		for _, cs := range r.CategoryScores {
 			catColor := getCategoryScoreColor(cs.Score)
-			catColor.Printf("    %s: %d/100", cs.Category, cs.Score)
+			_, err := catColor.Printf("    %s: %d/100", cs.Category, cs.Score)
+			if err != nil {
+				return
+			}
 			if cs.Findings > 0 {
 				fmt.Printf(" (%d findings)\n", cs.Findings)
 			} else {
@@ -189,7 +195,10 @@ func printSkillResult(r *model.AnalysisResult) {
 		for _, f := range r.Findings {
 			severityIcon := getSeverityIcon(f.Severity)
 			sevColor := getSeverityColor(f.Severity)
-			sevColor.Printf("    %s [%s] %s", severityIcon, f.Severity, f.Description)
+			_, err2 := sevColor.Printf("    %s [%s] %s", severityIcon, f.Severity, f.Description)
+			if err2 != nil {
+				return
+			}
 			if f.Deduction > 0 {
 				fmt.Printf(" (-%d)\n", f.Deduction)
 			} else {
