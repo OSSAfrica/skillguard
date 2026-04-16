@@ -1,0 +1,6 @@
+.git
+.github
+skillguard
+*.md
+.go
+go.sum

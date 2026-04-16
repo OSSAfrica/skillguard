@@ -1,0 +1,45 @@
+name: SkillGuard Security Scan
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/**'
+      - '**/*.md'
+  pull_request:
+    paths:
+      - '**/*.md'
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build -t skillguard:${{ github.sha }} .
+
+      - name: Run SkillGuard scan
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/workspace \
+            skillguard:${{ github.sha }} \
+            scan --path /workspace --threshold 70 --output /workspace/skillguard-report.json
+
+      - name: Upload report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: skillguard-report
+          path: skillguard-report.json
+
+      - name: Check for failures
+        run: |
+          if [ -f skillguard-report.json ]; then
+            FAILED=$(grep -o '"failed":[0-9]*' skillguard-report.json | grep -o '[0-9]*')
+            if [ "$FAILED" -gt "0" ]; then
+              echo "Security scan found $FAILED failing skills"
+              exit 1
+            fi
+          fi
