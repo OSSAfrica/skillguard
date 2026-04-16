@@ -101,6 +101,60 @@ When contributing security-related changes:
 - Join our community channel (if available)
 - Check existing documentation
 
+## Branch Strategy
+
+### Branch Types
+
+| Branch | Purpose | Protected |
+|--------|---------|-----------|
+| `main` | Development, default branch | Yes |
+| `release` | Stable releases | Yes |
+| `feature/*` | New features | No |
+| `fix/*` | Bug fixes | No |
+| `hotfix/*` | Emergency fixes | No |
+
+### Branch Protection Rules
+
+For `main` and `release` branches, the following rules are enforced:
+
+1. **Require pull request reviews** - At least 1 approval required
+2. **Require status checks** - CI must pass before merging
+3. **Require branch up to date** - Branch must be rebased on latest
+4. **Include administrators** - Rules apply to all, including admins
+5. **Allow force pushes** - Disabled
+
+### Workflow
+
+```
+main (development)
+  |
+  +-- feature/xyz --> PR --> Code Review --> CI Checks --> Merge
+  |
+release (stable releases)
+  |
+  +-- cherry-pick from main --> PR --> Merge --> Release Build
+```
+
+### Creating a Release
+
+Releases are created automatically via GitHub Actions when:
+
+1. A tag is pushed: `git tag v0.1.0 && git push origin v0.1.0`
+2. Code is merged to `release` branch
+3. Manual trigger via workflow dispatch
+
+### Version Bumping
+
+Version is auto-calculated from commit messages:
+
+| Commit Type | Version Bump |
+|-------------|---------------|
+| `feat:` | Minor (x.1.0) |
+| `fix:` | Patch (x.x.1) |
+| `BREAKING CHANGE:` | Major (1.0.0) |
+
+---
+
 ## Recognition
 
 Contributors will be acknowledged in the project documentation and release notes (with permission).

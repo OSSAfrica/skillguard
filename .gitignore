@@ -41,6 +41,9 @@ Thumbs.db
 !.github/**/*.json
 skillguard-report.json
 
+# GoReleaser output
+dist/
+
 # Temporary files
 *.tmp
 *.log
