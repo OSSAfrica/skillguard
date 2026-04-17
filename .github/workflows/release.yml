@@ -72,15 +72,10 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Version calculated: $VERSION (major: $MAJOR, minor: $MINOR, patch: $PATCH_NUM)"
 
-      - name: Generate changelog
-        id: changelog
-        run: |
-          CHANGELOG=$(git log --format="- %s (%h)" -10)
-          echo "changelog=$CHANGELOG" >> $GITHUB_OUTPUT
-
       - name: Create tag
         run: |
           VERSION="${{ steps.version.outputs.version }}"
+          echo "Creating tag: $VERSION"
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
           git tag -a $VERSION -m "Release $VERSION"
