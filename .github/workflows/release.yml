@@ -172,6 +172,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
@@ -190,12 +192,11 @@ jobs:
           output-file: skillguard-sbom.spdx
 
       - name: Upload SBOM to Release
-        uses: actions/upload-release-asset@e8f9f06c4b078e705bd2ea027f0926603fc9b4d5 # v1.0.2
+        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3.0.0
         with:
-          upload_url: ${{ needs.release.outputs.upload_url }}
-          asset_path: skillguard-sbom.spdx
-          asset_name: skillguard-${{ needs.versioning.outputs.version }}-sbom.spdx
-          asset_content_type: application/octet-stream
+          files: skillguard-sbom.spdx
+          name: skillguard-${{ needs.versioning.outputs.version }}-sbom.spdx
+          release_name: skillguard-${{ needs.versioning.outputs.version }}
 
   notify:
     needs: [ versioning, release, docker, sign, sbom ]
