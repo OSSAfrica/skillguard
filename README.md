@@ -2,8 +2,10 @@
 
 [![Go Version](https://img.shields.io/github/go-mod/go-version/OSSAfrica/skillguard)](https://github.com/OSSAfrica/skillguard)
 [![License](https://img.shields.io/github/license/OSSAfrica/skillguard)](LICENSE)
-[![Docker](https://img.shields.io/docker/pulls/OSSAfrica/skillguard)](https://hub.docker.com/r/OSSAfrica/skillguard)
+[![Docker](https://img.shields.io/docker/v/image-size/OSSAfrica/skillguard?type=distroless)](https://hub.docker.com/r/OSSAfrica/skillguard)
 [![Version](https://img.shields.io/github/v/release/OSSAfrica/skillguard)](https://github.com/OSSAfrica/skillguard/releases)
+[![Chainguard](https://cgr.dev/chainguard/badge.svg)](https://chainguard.dev)
+[![Security Scorecard](https://api.securityscorecards.dev/projects/github.com/OSSAfrica/skillguard/badge)](https://securityscorecards.dev/details/github.com/OSSAfrica/skillguard)
 
 SkillGuard is a security scanner for AI agent "skills" defined in Markdown. It evaluates skill definitions for security risks, malicious intents, and supply chain vulnerabilities, providing transparency to developers and end-users.
 
@@ -52,6 +54,10 @@ brew install skillguard/skillguard/skillguard
 ### Docker
 
 ```bash
+# GitHub Container Registry (Chainguard-based, distroless)
+docker pull ghcr.io/ossafrica/skillguard:latest
+
+# Or from Docker Hub
 docker pull OSSAfrica/skillguard:latest
 ```
 
@@ -192,7 +198,7 @@ External URLs to domains not in this list are flagged as medium-risk.
 ### Scan local skills
 
 ```bash
-docker run --rm -v ~/path/to/skills:/skills OSSAfrica/skillguard scan --path /skills
+docker run --rm -v ~/path/to/skills:/skills ghcr.io/ossafrica/skillguard scan --path /skills
 ```
 
 ### CI/CD Integration
