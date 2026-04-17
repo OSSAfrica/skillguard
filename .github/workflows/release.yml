@@ -145,8 +145,30 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           platforms: linux/amd64,linux/arm64
 
+  chps-score:
+    needs: [ docker ]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: CHPs Security Check
+        id: chps
+        uses: chps-dev/chps-scorer-github-action@94ac2c9252014ab100cbd98855d06acb0f5381a4
+        with:
+          image: ghcr.io/${{ github.repository }}:latest
+          dockerfile: ./Dockerfile
+          skip-cves: true
+
+      - name: Display CHPs Score
+        run: |
+          echo "${{ steps.chps.outputs.output }}"
+
   notify:
-    needs: [ versioning, release, docker ]
+    needs: [ versioning, release, docker, chps-score ]
     if: always()
     runs-on: ubuntu-latest
     steps:
