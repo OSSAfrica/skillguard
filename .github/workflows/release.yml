@@ -146,7 +146,7 @@ jobs:
           platforms: linux/amd64,linux/arm64
 
   chps-score:
-    needs: [docker]
+    needs: [ docker ]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -157,7 +157,7 @@ jobs:
 
       - name: CHPs Security Check
         id: chps
-        uses: chps-dev/chps-scorer-github-action@v1
+        uses: chps-dev/chps-scorer-github-action@94ac2c9252014ab100cbd98855d06acb0f5381a4
         with:
           image: ghcr.io/${{ github.repository }}:latest
           dockerfile: ./Dockerfile
