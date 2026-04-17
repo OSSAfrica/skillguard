@@ -15,7 +15,7 @@ jobs:
       version: ${{ steps.version.outputs.version }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@11fa7e1a04c30fa5696e448c40eb5b2e0a2b64e6d
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
@@ -82,7 +82,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@11fa7e1a04c30fa5696e448c40eb5b2e0a2b64e6d
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
@@ -90,13 +90,13 @@ jobs:
         run: git fetch --tags origin
 
       - name: Set up Go
-        uses: actions/setup-go@5f458dabc3fc9a50ea64f6c3f3c7be1c0a3d4f5e
+        uses: actions/setup-go@v5
         with:
           go-version: '1.25'
           cache: true
 
       - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@4e2f8e7d91f0f9e8f7d6c5b4a3e2f1d0c9b8a7
+        uses: goreleaser/goreleaser-action@v6
         with:
           version: latest
           args: release --clean --timeout 30m
@@ -112,16 +112,16 @@ jobs:
       id-token: write
     steps:
       - name: Checkout
-        uses: actions/checkout@11fa7e1a04c30fa5696e448c40eb5b2e0a2b64e6d
+        uses: actions/checkout@v4
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@1b4553a6b5d2ec1c5f0b33a0549f7e5a7a0e5b0b6
+        uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@19f7a56ad9c96e5d15e8ae5a7f2a5c9d8e1f2a3b
+        uses: docker/setup-buildx-action@v3
 
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@e7b3b2c6e8a74fe85ee6c8a4e2b7c3e1c9d5f8a6
+        uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -129,7 +129,7 @@ jobs:
 
       - name: Extract metadata
         id: meta
-        uses: docker/metadata-action@2ee68cd1cf9b8d5e8b6e2b5a4c6f8a7e1d3c5b9
+        uses: docker/metadata-action@v5
         with:
           images: ghcr.io/${{ github.repository }}
           tags: |
@@ -137,7 +137,7 @@ jobs:
             type=raw,value=latest
 
       - name: Build and push Docker image
-        uses: docker/build-push-action@59d4e8e7db08b1e17de11c74e4a54c4a8b5cd6ef
+        uses: docker/build-push-action@v6
         with:
           context: .
           push: true
