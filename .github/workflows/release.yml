@@ -118,10 +118,10 @@ jobs:
         uses: docker/setup-qemu-action@aa2c3e8b13dfb98c21c2c3cbc5d60e90d028c962 # v3
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@2d96bd3678d92ed41fce3d5ce573db873a0faf0 # v3
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
 
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@343f7c434d92bc62c5b14e03f651e15a5c5f91a # v3
+        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -129,7 +129,7 @@ jobs:
 
       - name: Extract metadata
         id: meta
-        uses: docker/metadata-action@8c076059cdd37efc45e4c22a4c7919f50593d00ca # v5
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5
         with:
           images: ghcr.io/${{ github.repository }}
           tags: |
