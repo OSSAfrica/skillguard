@@ -10,8 +10,6 @@ archives:
     formats:
       - tar.gz
       - zip
-    builds:
-      - skillguard
 
 checksum:
   name_template: 'checksums.txt'
@@ -39,20 +37,6 @@ builds:
       - -X github.com/OSSAfrica/skillguard/cmd.version={{ .Version }}
     env:
       - CGO_ENABLED=0
-
-docker_manifests:
-  - image_template: 'OSSAfrica/skillguard:{{ .Version }}'
-    dockerfile: Dockerfile
-    build_flag_templates:
-      - --label=org.opencontainers.image.title=SkillGuard
-      - --label=org.opencontainers.image.description=Security scanner for AI agent skills
-      - --label=org.opencontainers.image.version={{ .Version }}
-      - --label=org.opencontainers.image.source=https://github.com/OSSAfrica/skillguard
-  - image_template: 'OSSAfrica/skillguard:latest'
-    dockerfile: Dockerfile
-    build_flag_templates:
-      - --label=org.opencontainers.image.title=SkillGuard
-      - --label=org.opencontainers.image.description=Security scanner for AI agent skills
 
 release:
   draft: false
