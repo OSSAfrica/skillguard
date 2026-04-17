@@ -2,112 +2,97 @@ name: Release
 
 on:
   push:
-    branches:
-      - main
-      - release
-    tags:
-      - 'v*'
-  workflow_dispatch:
-    inputs:
-      version:
-        description: 'Manual version (e.g., v0.1.0)'
-        required: false
-        type: string
+    branches: [main]
 
 permissions:
   contents: write
   pages: write
-  id-token: write
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: false
 
 jobs:
-  version:
+  versioning:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
-      is_release: ${{ steps.version.outputs.is_release }}
+      changelog: ${{ steps.changelog.outputs.changelog }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Determine version
+      - name: Calculate version
         id: version
         run: |
-          # Check if manual version provided
-          if [[ "${{ github.event.inputs.version }}" != "" ]]; then
-            VERSION="${{ github.event.inputs.version }}"
-            IS_RELEASE="true"
-            echo "version=$VERSION" >> $GITHUB_OUTPUT
-            echo "is_release=$IS_RELEASE" >> $GITHUB_OUTPUT
-            exit 0
+          # Get previous tag or use v0.0.0 as base
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "v0.0.0")
+          PREV_VERSION=${PREV_TAG#v}
+          
+          # Get commits since last release
+          COMMITS=$(git log --format=%s ${PREV_TAG}..HEAD 2>/dev/null | head -50)
+          if [[ -z "$COMMITS" ]]; then
+            COMMITS=$(git log --format=%s -1 HEAD)
           fi
-
-          # Check if tag pushed
-          if [[ "${{ github.ref }}" == "refs/tags/v"* ]]; then
-            VERSION="${GITHUB_REF#refs/tags/v}"
-            IS_RELEASE="true"
-            echo "version=v$VERSION" >> $GITHUB_OUTPUT
-            echo "is_release=$IS_RELEASE" >> $GITHUB_OUTPUT
-            exit 0
-          fi
-
-          # Auto-version from commits
-          BASE_VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
-          COMMIT_COUNT=$(git rev-list --count HEAD ^$BASE_VERSION 2>/dev/null || echo "1")
-
-          # Determine bump type from commits
-          MAJOR_BUMP=false
-          MINOR_BUMP=false
-
-          for commit in $(git log --format=%s HEAD ^$BASE_VERSION 2>/dev/null | head -20); do
+          
+          # Determine bump type
+          MAJOR=0
+          MINOR=0
+          PATCH=0
+          
+          for commit in $COMMITS; do
             if [[ "$commit" == *"BREAKING"* ]] || [[ "$commit" == *"breaking change"* ]]; then
-              MAJOR_BUMP=true
+              MAJOR=1
               break
             fi
-            if [[ "$commit" == "feat:"* ]] || [[ "$commit" == "feat("* ]]; then
-              MINOR_BUMP=true
+            if [[ "$commit" == feat:* ]] || [[ "$commit" == feat\( ]]; then
+              MINOR=1
             fi
           done
-
+          
           # Calculate new version
-          BASE_NUM=$(echo $BASE_VERSION | sed 's/v//' | cut -d. -f1-2)
-          MAJOR=$(echo $BASE_NUM | cut -d. -f1)
-          MINOR=$(echo $BASE_NUM | cut -d. -f2)
-          PATCH=$(echo $BASE_NUM | cut -d. -f3)
-
-          if [[ "$MAJOR_BUMP" == "true" ]]; then
-            MAJOR=$((MAJOR + 1))
-            MINOR=0
-            PATCH=0
-          elif [[ "$MINOR_BUMP" == "true" ]]; then
-            MINOR=$((MINOR + 1))
-            PATCH=0
-          else
-            PATCH=$((PATCH + 1))
+          MAJOR_NUM=$(echo $PREV_VERSION | cut -d. -f1)
+          MINOR_NUM=$(echo $PREV_VERSION | cut -d. -f2)
+          PATCH_NUM=$(echo $PREV_VERSION | cut -d. -f3)
+          
+          if [[ -z "$PATCH_NUM" ]]; then
+            PATCH_NUM=0
           fi
-
-          VERSION="v${MAJOR}.${MINOR}.${PATCH}"
-          IS_RELEASE="false"
-
+          
+          if [[ "$MAJOR" == "1" ]]; then
+            MAJOR_NUM=$((MAJOR_NUM + 1))
+            MINOR_NUM=0
+            PATCH_NUM=0
+          elif [[ "$MINOR" == "1" ]]; then
+            MINOR_NUM=$((MINOR_NUM + 1))
+            PATCH_NUM=0
+          else
+            PATCH_NUM=$((PATCH_NUM + 1))
+          fi
+          
+          VERSION="v${MAJOR_NUM}.${MINOR_NUM}.${PATCH_NUM}"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "is_release=$IS_RELEASE" >> $GITHUB_OUTPUT
-          echo "Detected version: $VERSION (release: $IS_RELEASE)"
+          echo "Version calculated: $VERSION (major: $MAJOR, minor: $MINOR, patch: $PATCH_NUM)"
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          CHANGELOG=$(git log --format="- %s (%h)" -10)
+          echo "changelog=$CHANGELOG" >> $GITHUB_OUTPUT
+
+      - name: Create tag
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git tag -a $VERSION -m "Release $VERSION"
+          git push origin $VERSION
+          echo "Tag $VERSION created and pushed"
 
   release:
-    needs: version
-    if: needs.version.outputs.is_release == 'true'
+    needs: versioning
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          ref: ${{ github.ref_name }}
-          fetch-depth: 0
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -119,22 +104,30 @@ jobs:
         uses: goreleaser/goreleaser-action@v6
         with:
           version: latest
-          args: release --clean
+          args: release --clean --timeout 30m
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   notify:
-    needs: [version, release]
+    needs: [versioning, release]
     if: always()
     runs-on: ubuntu-latest
     steps:
       - name: Summary
+        env:
+          VERSION: ${{ needs.versioning.outputs.version }}
+          COMMIT_MSG: ${{ github.event.head_commit.message || '' }}
         run: |
           echo "## Release Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Version: ${{ needs.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
-          echo "Release: ${{ needs.version.outputs.is_release }}" >> $GITHUB_STEP_SUMMARY
-          if [ "${{ needs.version.outputs.is_release }}" == "true" ]; then
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "Status: Release created successfully" >> $GITHUB_STEP_SUMMARY
+          echo "Version: $VERSION" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [[ "$COMMIT_MSG" == *"BREAKING"* ]]; then
+            echo "Type: MAJOR release (breaking change detected)" >> $GITHUB_STEP_SUMMARY
+          elif [[ "$COMMIT_MSG" == feat:* ]]; then
+            echo "Type: MINOR release (new feature)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "Type: PATCH release (bug fixes)" >> $GITHUB_STEP_SUMMARY
           fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Status: Release artifacts built and uploaded" >> $GITHUB_STEP_SUMMARY
