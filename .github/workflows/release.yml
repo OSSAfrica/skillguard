@@ -114,14 +114,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Summary
+        env:
+          VERSION: ${{ needs.versioning.outputs.version }}
+          COMMIT_MSG: ${{ github.event.head_commit.message || '' }}
         run: |
           echo "## Release Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Version: ${{ needs.versioning.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "Version: $VERSION" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          if [ "${{ contains(github.event.head_commit.message, 'BREAKING') }}" == "true" ]; then
+          if [[ "$COMMIT_MSG" == *"BREAKING"* ]]; then
             echo "Type: MAJOR release (breaking change detected)" >> $GITHUB_STEP_SUMMARY
-          elif [[ "${{ github.event.head_commit.message }}" == feat:* ]]; then
+          elif [[ "$COMMIT_MSG" == feat:* ]]; then
             echo "Type: MINOR release (new feature)" >> $GITHUB_STEP_SUMMARY
           else
             echo "Type: PATCH release (bug fixes)" >> $GITHUB_STEP_SUMMARY
