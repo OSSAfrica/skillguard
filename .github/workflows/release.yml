@@ -169,15 +169,15 @@ jobs:
 
       - name: Pull image to sign
         run: |
-          docker pull ghcr.io/${{ env.REPO }}:${{ env.VERSION }} || docker pull ghcr.io/${{ env.REPO }}:latest
+          docker pull ghcr.io/${{ env.REPO }}:latest
 
       - name: Sign Docker image
         run: |
-          cosign sign --yes ghcr.io/${{ env.REPO }}:${{ env.VERSION }}
+          cosign sign --yes ghcr.io/${{ env.REPO }}:latest
 
       - name: Verify signatures
         run: |
-          cosign verify ghcr.io/${{ env.REPO }}:${{ env.VERSION }}
+          cosign verify ghcr.io/${{ env.REPO }}:latest
 
   sbom:
     needs: [ versioning, docker ]
@@ -208,12 +208,12 @@ jobs:
 
       - name: Pull image for SBOM
         run: |
-          docker pull ghcr.io/${{ env.REPO }}:${{ env.VERSION }} || docker pull ghcr.io/${{ env.REPO }}:latest
+          docker pull ghcr.io/${{ env.REPO }}:latest
 
       - name: Generate SBOM
         uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
         with:
-          image: ghcr.io/${{ env.REPO }}:${{ env.VERSION }}
+          image: ghcr.io/${{ env.REPO }}:latest
           output-file: skillguard-sbom.spdx
 
       - name: Upload SBOM to Release
