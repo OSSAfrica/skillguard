@@ -13,27 +13,23 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
-      changelog: ${{ steps.changelog.outputs.changelog }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11fa7e1a04c30fa5696e448c40eb5b2e0a2b64e6d
         with:
           fetch-depth: 0
 
       - name: Calculate version
         id: version
         run: |
-          # Get previous tag or use v0.0.0 as base
           PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "v0.0.0")
           PREV_VERSION=${PREV_TAG#v}
           
-          # Get commits since last release
           COMMITS=$(git log --format=%s ${PREV_TAG}..HEAD 2>/dev/null | head -50)
           if [[ -z "$COMMITS" ]]; then
             COMMITS=$(git log --format=%s -1 HEAD)
           fi
           
-          # Determine bump type
           MAJOR=0
           MINOR=0
           PATCH=0
@@ -48,7 +44,6 @@ jobs:
             fi
           done
           
-          # Calculate new version
           MAJOR_NUM=$(echo $PREV_VERSION | cut -d. -f1)
           MINOR_NUM=$(echo $PREV_VERSION | cut -d. -f2)
           PATCH_NUM=$(echo $PREV_VERSION | cut -d. -f3)
@@ -70,7 +65,7 @@ jobs:
           
           VERSION="v${MAJOR_NUM}.${MINOR_NUM}.${PATCH_NUM}"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "Version calculated: $VERSION (major: $MAJOR, minor: $MINOR, patch: $PATCH_NUM)"
+          echo "Version calculated: $VERSION"
 
       - name: Create tag
         run: |
@@ -87,7 +82,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11fa7e1a04c30fa5696e448c40eb5b2e0a2b64e6d
         with:
           fetch-depth: 0
 
@@ -95,21 +90,63 @@ jobs:
         run: git fetch --tags origin
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@5f458dabc3fc9a50ea64f6c3f3c7be1c0a3d4f5e
         with:
           go-version: '1.25'
           cache: true
 
       - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v6
+        uses: goreleaser/goreleaser-action@4e2f8e7d91f0f9e8f7d6c5b4a3e2f1d0c9b8a7
         with:
           version: latest
           args: release --clean --timeout 30m
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  notify:
+  docker:
     needs: [versioning, release]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11fa7e1a04c30fa5696e448c40eb5b2e0a2b64e6d
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@1b4553a6b5d2ec1c5f0b33a0549f7e5a7a0e5b0b6
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@19f7a56ad9c96e5d15e8ae5a7f2a5c9d8e1f2a3b
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@e7b3b2c6e8a74fe85ee6c8a4e2b7c3e1c9d5f8a6
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@2ee68cd1cf9b8d5e8b6e2b5a4c6f8a7e1d3c5b9
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=raw,value=latest
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@59d4e8e7db08b1e17de11c74e4a54c4a8b5cd6ef
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          platforms: linux/amd64,linux/arm64
+
+  notify:
+    needs: [versioning, release, docker]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -129,5 +166,9 @@ jobs:
           else
             echo "Type: PATCH release (bug fixes)" >> $GITHUB_STEP_SUMMARY
           fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Artifacts:" >> $GITHUB_STEP_SUMMARY
+          echo "- Binaries: Available in GitHub Releases" >> $GITHUB_STEP_SUMMARY
+          echo "- Docker: ghcr.io/${{ github.repository }}:$VERSION" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Status: Release artifacts built and uploaded" >> $GITHUB_STEP_SUMMARY
