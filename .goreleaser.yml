@@ -1,6 +1,8 @@
 # GoReleaser Configuration
 # https://goreleaser.com
 
+version: 2
+
 project_name: skillguard
 
 archives:
