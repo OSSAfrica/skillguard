@@ -1,4 +1,4 @@
-FROM cgr.dev/chainguard/go:latest AS builder
+FROM cgr.dev/chainguard/go:1.25 AS builder
 
 WORKDIR /app
 
@@ -8,8 +8,10 @@ RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -o skillguard .
 
-FROM cgr.dev/chainguard/static:latest
+FROM cgr.dev/chainguard/static:20260401
 
 COPY --from=builder /app/skillguard /skillguard
+
+USER nonroot
 
 ENTRYPOINT ["/skillguard"]
