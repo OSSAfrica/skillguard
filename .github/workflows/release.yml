@@ -180,7 +180,7 @@ jobs:
           cosign verify ghcr.io/${{ env.REPO }}:latest
 
   sbom:
-    needs: [ versioning, docker ]
+    needs: [ versioning, release, docker ]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -220,8 +220,8 @@ jobs:
         uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3.0.0
         with:
           files: skillguard-sbom.spdx
-          name: skillguard-${{ needs.versioning.outputs.version }}-sbom.spdx
-          release_name: skillguard-${{ needs.versioning.outputs.version }}
+          tag_name: ${{ needs.versioning.outputs.version }}
+          overwrite: true
 
   notify:
     needs: [ versioning, release, docker, sign, sbom ]
