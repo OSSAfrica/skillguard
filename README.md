@@ -99,6 +99,32 @@ echo $?  # 0 = pass, 1 = fail, 2 = error
 skillguard scan --output report.json
 ```
 
+## Visual Examples
+
+### Help Command
+
+Display available commands and options:
+
+![Help Command](vhs/skillguard-help.gif)
+
+### Scanning Cloudflare Skills
+
+Scan a skills directory (e.g., cloudflare skills):
+
+![Scan Cloudflare](vhs/skillguard-scan-cloudflare.gif)
+
+### Scanning AI SDK Skills
+
+Scan the AI SDK skills directory:
+
+![Scan AI SDK](vhs/skillguard-scan-ai-sdk.gif)
+
+### Multiple Paths with Error
+
+Scan multiple paths (comma-separated) and handle errors gracefully:
+
+![Multiple Paths with Error](vhs/skillguard-multiple-paths-with-error.gif)
+
 ## Command Reference
 
 | Flag | Short | Description | Default |
