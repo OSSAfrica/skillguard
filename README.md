@@ -4,9 +4,8 @@
 [![License](https://img.shields.io/github/license/OSSAfrica/skillguard)](LICENSE)
 [![Docker Image Size](https://img.shields.io/docker/image-size/OSSAfrica/skillguard/latest)](https://hub.docker.com/r/OSSAfrica/skillguard)
 [![Version](https://img.shields.io/github/v/release/OSSAfrica/skillguard)](https://github.com/OSSAfrica/skillguard/releases)
-[![CHPs Score](https://github.com/OSSAfrica/skillguard/workflows/CHPs%20Container%20Security%20Check/badge.svg)](https://github.com/OSSAfrica/skillguard/actions)
+[![OpenSSF Scorecard](https://img.shields.io/ossf-scorecard/github.com/OSSAfrica/skillguard?label=OpenSSF)](https://securityscorecards.dev/details/github.com/OSSAfrica/skillguard)
 [![Security Scorecard](https://api.securityscorecards.dev/projects/github.com/OSSAfrica/skillguard/badge)](https://securityscorecards.dev/details/github.com/OSSAfrica/skillguard)
-[![OpenSSF Scorecard](https://img.shields.io/ossf-scorecard/github.com/OSSAfrica/skillguard)](https://securityscorecards.dev/details/github.com/OSSAfrica/skillguard)
 
 SkillGuard is a security scanner for AI agent "skills" defined in Markdown. It evaluates skill definitions for security risks, malicious intents, and supply chain vulnerabilities, providing transparency to developers and end-users.
 
