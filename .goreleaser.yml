@@ -34,7 +34,7 @@ builds:
       - arm64
     ldflags:
       - -s -w
-      - -X github.com/OSSAfrica/skillguard/cmd.version={{ .Version }}
+      - -X skillguard/cmd.version={{ .Version }}
     env:
       - CGO_ENABLED=0
 
