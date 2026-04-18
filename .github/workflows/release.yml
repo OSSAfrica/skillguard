@@ -160,7 +160,7 @@ jobs:
           done
 
       - run: cosign sign --yes ghcr.io/${{ env.REPO }}:latest
-      - run: cosign verify --certificate-identity-regexp ".*" ghcr.io/${{ env.REPO }}:latest
+      - run: cosign verify --certificate-identity-regexp ".*" --certificate-oidc-issuer-regexp ".*actions.githubusercontent.com.*" ghcr.io/${{ env.REPO }}:latest
 
   sbom:
     needs: [ versioning, release, docker ]
