@@ -35,10 +35,6 @@ builds:
       - -X skillguard/cmd.version={{ .Version }}
     env:
       - CGO_ENABLED=0
-    archives:
-      - id: darwin-archive
-        formats:
-          - tar.gz
 
   - id: skillguard-linux
     binary: skillguard
@@ -67,11 +63,6 @@ builds:
       - -X skillguard/cmd.version={{ .Version }}
     env:
       - CGO_ENABLED=0
-    archives:
-      - id: windows-archive
-        formats:
-          - tar.gz
-          - zip
 
 release:
   draft: false
