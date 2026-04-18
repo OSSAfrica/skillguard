@@ -160,7 +160,7 @@ jobs:
           done
 
       - run: cosign sign --yes ghcr.io/${{ env.REPO }}:latest
-      - run: cosign verify ghcr.io/${{ env.REPO }}:latest
+      - run: cosign verify --certificate-identity-regexp ".*" ghcr.io/${{ env.REPO }}:latest
 
   sbom:
     needs: [ versioning, release, docker ]
@@ -192,11 +192,9 @@ jobs:
           image: ghcr.io/${{ env.REPO }}:latest
           output-file: skillguard-sbom.spdx
 
-      - uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda
-        with:
-          files: skillguard-sbom.spdx
-          tag_name: ${{ needs.versioning.outputs.version }}
-          overwrite_files: true
+      - run: gh release upload ${{ needs.versioning.outputs.version }} skillguard-sbom.spdx
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   notify:
     needs: [ versioning, release, docker, sign, sbom ]

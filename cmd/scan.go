@@ -20,6 +20,7 @@ var (
 	threshold  int
 	outputFile string
 	quietMode  bool
+	verbose    bool
 )
 
 var scanCmd = &cobra.Command{
@@ -39,6 +40,8 @@ func init() {
 		"Output JSON report to file (optional)")
 	scanCmd.Flags().BoolVarP(&quietMode, "quiet", "q", false,
 		"Minimal output - just pass/fail status")
+	scanCmd.Flags().BoolVarP(&verbose, "verbose", "v", false,
+		"Show all findings and detailed breakdown")
 
 	rootCmd.AddCommand(scanCmd)
 }
@@ -152,14 +155,14 @@ func printColoredReport(report *model.ScanReport) {
 	fmt.Println(strings.Repeat("─", 70))
 
 	for _, result := range report.Results {
-		printSkillResult(&result)
+		printSkillResult(&result, verbose)
 	}
 
 	fmt.Println(strings.Repeat("─", 70))
 	fmt.Printf("Summary: %d passed, %d failed\n", report.Passed, report.Failed)
 }
 
-func printSkillResult(r *model.AnalysisResult) {
+func printSkillResult(r *model.AnalysisResult, verbose bool) {
 	if r.Passed {
 		color.Green("✓ %s", r.SkillName)
 	} else {
@@ -174,6 +177,14 @@ func printSkillResult(r *model.AnalysisResult) {
 	fmt.Println()
 	fmt.Printf("  File: %s\n", r.FilePath)
 
+	hasDetailedBreakdown := false
+	for _, cs := range r.CategoryScores {
+		if len(cs.Breakdown) > 0 {
+			hasDetailedBreakdown = true
+			break
+		}
+	}
+
 	if len(r.CategoryScores) > 0 {
 		fmt.Println("  Category Scores:")
 		for _, cs := range r.CategoryScores {
@@ -182,7 +193,13 @@ func printSkillResult(r *model.AnalysisResult) {
 			if err != nil {
 				return
 			}
-			if cs.Findings > 0 {
+			if verbose && len(cs.Breakdown) > 0 {
+				checkWord := "checks"
+				if len(cs.Breakdown) == 1 {
+					checkWord = "check"
+				}
+				fmt.Printf(" (%d %s)\n", len(cs.Breakdown), checkWord)
+			} else if cs.Findings > 0 {
 				fmt.Printf(" (%d findings)\n", cs.Findings)
 			} else {
 				fmt.Println()
@@ -190,7 +207,34 @@ func printSkillResult(r *model.AnalysisResult) {
 		}
 	}
 
-	if !r.Passed && len(r.Findings) > 0 {
+	if verbose && hasDetailedBreakdown {
+		fmt.Println("  Detailed Breakdown:")
+		for _, cs := range r.CategoryScores {
+			if len(cs.Breakdown) == 0 {
+				continue
+			}
+			fmt.Printf("    %s:\n", cs.Category)
+			for _, f := range cs.Breakdown {
+				checkIcon := "✓"
+				checkColor := color.New(color.FgGreen)
+				if f.Deduction > 0 {
+					checkIcon = "✗"
+					checkColor = getSeverityColor(f.Severity)
+				}
+				_, err := checkColor.Printf("      %s %s", checkIcon, f.Description)
+				if err != nil {
+					return
+				}
+				if f.Deduction > 0 {
+					fmt.Printf(" (-%d)\n", f.Deduction)
+				} else {
+					fmt.Println()
+				}
+			}
+		}
+	}
+
+	if (verbose || !r.Passed) && len(r.Findings) > 0 {
 		fmt.Println("  Findings:")
 		for _, f := range r.Findings {
 			severityIcon := getSeverityIcon(f.Severity)
