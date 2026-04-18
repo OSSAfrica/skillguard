@@ -76,5 +76,3 @@ brews:
     homepage: "https://github.com/OSSAfrica/skillguard"
     description: "Security scanner for AI skill definitions"
     license: "MIT"
-    ids:
-      - skillguard-darwin
