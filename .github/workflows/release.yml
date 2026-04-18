@@ -192,9 +192,19 @@ jobs:
           image: ghcr.io/${{ env.REPO }}:latest
           output-file: skillguard-sbom.spdx
 
-      - run: gh release upload ${{ needs.versioning.outputs.version }} skillguard-sbom.spdx
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload SBOM to Release
+        run: |
+          VERSION="${{ needs.versioning.outputs.version }}"
+          GH_ASSET="skillguard-${VERSION}-sbom.spdx"
+          mv skillguard-sbom.spdx "$GH_ASSET"
+          
+          RELEASE_ID=$(gh release view "$VERSION" --json id -q .id)
+          
+          curl -sL \
+            -X POST "https://uploads.github.com/repos/${{ github.repository }}/releases/${RELEASE_ID}/assets?name=${GH_ASSET}&label=SBOM" \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Content-Type: application/octet-stream" \
+            --data-binary @"$GH_ASSET"
 
   notify:
     needs: [ versioning, release, docker, sign, sbom ]
