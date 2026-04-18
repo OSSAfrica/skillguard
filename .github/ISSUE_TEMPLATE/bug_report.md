@@ -3,6 +3,7 @@ name: Bug report
 about: Create a report to help us improve SkillGuard
 title: '[BUG]'
 labels: bug
+issue_type: bug
 assignees: ''
 ---
 
