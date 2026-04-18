@@ -24,15 +24,14 @@ var (
 )
 
 var scanCmd = &cobra.Command{
-	Use:   "scan",
+	Use:   "scan [path]",
 	Short: "Scan AI skill definitions for security risks",
 	Long:  `SkillGuard analyzes Markdown-based skill definitions for security vulnerabilities, dangerous permissions, and supply chain risks.`,
 	RunE:  runScan,
 }
 
 func init() {
-	cfg := loadConfig()
-	scanCmd.Flags().StringVarP(&scanPath, "path", "p", cfg.DefaultPath,
+	scanCmd.Flags().StringVarP(&scanPath, "path", "p", "",
 		"Path to scan (file, directory, or comma-separated paths)")
 	scanCmd.Flags().IntVarP(&threshold, "threshold", "t", 70,
 		"Minimum score to pass (0-100)")
@@ -48,7 +47,15 @@ func init() {
 
 func runScan(cmd *cobra.Command, args []string) error {
 	cfg := loadConfig()
-	paths := parsePaths(scanPath, cfg.DefaultPath)
+
+	var paths []string
+	if len(args) > 0 {
+		paths = args
+	} else if scanPath != "" {
+		paths = []string{scanPath}
+	} else {
+		paths = []string{cfg.DefaultPath}
+	}
 
 	var allFiles []string
 	for _, p := range paths {
