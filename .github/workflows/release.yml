@@ -194,6 +194,7 @@ jobs:
 
       - name: Upload SBOM to Release
         run: |
+          export GH_TOKEN="${{ secrets.GITHUB_TOKEN }}"
           VERSION="${{ needs.versioning.outputs.version }}"
           GH_ASSET="skillguard-${VERSION}-sbom.spdx"
           mv skillguard-sbom.spdx "$GH_ASSET"
