@@ -40,3 +40,13 @@ builds:
 
 release:
   draft: false
+
+brews:
+  - repository:
+      owner: OSSAfrica
+      name: homebrew-skillguard
+      token: "{{ .Env.GITHUB_TOKEN }}"
+    directory: Formula
+    homepage: "https://github.com/OSSAfrica/skillguard"
+    description: "Security scanner for AI skill definitions"
+    license: "MIT"
