@@ -57,7 +57,7 @@ func runScan(cmd *cobra.Command, args []string) error {
 		paths = []string{cfg.DefaultPath}
 	}
 
-	var allFiles []string
+	var allFiles []parser.FoundFile
 	for _, p := range paths {
 		expandedPath := expandPath(p)
 		files, err := parser.FindSkillFiles(expandedPath)
@@ -81,17 +81,28 @@ func runScan(cmd *cobra.Command, args []string) error {
 		Results:   []model.AnalysisResult{},
 	}
 
-	for _, file := range allFiles {
-		metadata, body, err := parser.ParseSkillFile(file)
-		if err != nil {
-			if !quietMode {
-				color.Red("Error parsing %s: %v", file, err)
+	for _, f := range allFiles {
+		if f.FileType == parser.FileTypeReference {
+			body, err := parser.ExtractBodyOnly(f.Path)
+			if err != nil {
+				if !quietMode {
+					color.Red("Error reading %s: %v", f.Path, err)
+				}
+				continue
 			}
-			continue
+			result := scorer.AnalyzeReference(f.Path, body)
+			report.Results = append(report.Results, *result)
+		} else {
+			metadata, body, err := parser.ParseSkillFile(f.Path)
+			if err != nil {
+				if !quietMode {
+					color.Red("Error parsing %s: %v", f.Path, err)
+				}
+				continue
+			}
+			result := scorer.Analyze(f.Path, metadata, body)
+			report.Results = append(report.Results, *result)
 		}
-
-		result := scorer.Analyze(file, metadata, body)
-		report.Results = append(report.Results, *result)
 	}
 
 	report.TotalSkills = len(report.Results)
@@ -154,9 +165,9 @@ func printColoredReport(report *model.ScanReport) {
 
 	fmt.Printf("Scanned: %d skills | Threshold: %d | ", report.TotalSkills, report.Threshold)
 	if report.Failed == 0 {
-		color.Green("PASSED ✓")
+		color.Green("PASSED")
 	} else {
-		color.Red("FAILED ✗")
+		color.Red("FAILED")
 	}
 	fmt.Println()
 	fmt.Println(strings.Repeat("─", 70))
@@ -170,10 +181,15 @@ func printColoredReport(report *model.ScanReport) {
 }
 
 func printSkillResult(r *model.AnalysisResult, verbose bool) {
+	name := r.SkillName
+	if r.IsReference {
+		name = "[Reference] " + name
+	}
+
 	if r.Passed {
-		color.Green("✓ %s", r.SkillName)
+		color.Green("[PASS] %s", name)
 	} else {
-		color.Red("✗ %s", r.SkillName)
+		color.Red("[FAIL] %s", name)
 	}
 
 	scoreColor := getScoreColor(r.OverallScore)
@@ -222,13 +238,13 @@ func printSkillResult(r *model.AnalysisResult, verbose bool) {
 			}
 			fmt.Printf("    %s:\n", cs.Category)
 			for _, f := range cs.Breakdown {
-				checkIcon := "✓"
+				checkIcon := "OK"
 				checkColor := color.New(color.FgGreen)
 				if f.Deduction > 0 {
-					checkIcon = "✗"
+					checkIcon = "FAIL"
 					checkColor = getSeverityColor(f.Severity)
 				}
-				_, err := checkColor.Printf("      %s %s", checkIcon, f.Description)
+				_, err := checkColor.Printf("      [%s] %s", checkIcon, f.Description)
 				if err != nil {
 					return
 				}
@@ -292,11 +308,11 @@ func getSeverityColor(sev model.Severity) *color.Color {
 func getSeverityIcon(sev model.Severity) string {
 	switch sev {
 	case model.SeverityHigh:
-		return "🔴"
+		return "[HIGH]"
 	case model.SeverityMedium:
-		return "🟡"
+		return "[MEDIUM]"
 	default:
-		return "🔵"
+		return "[LOW]"
 	}
 }
 
