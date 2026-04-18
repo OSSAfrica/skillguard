@@ -9,7 +9,6 @@ archives:
   - id: default
     formats:
       - tar.gz
-      - zip
 
 checksum:
   name_template: 'checksums.txt'
@@ -22,42 +21,66 @@ changelog:
       - '^test:'
 
 builds:
-  - id: skillguard-darwin
+  - id: darwin-amd64
     binary: skillguard
     main: ./main.go
-    goos:
-      - darwin
-    goarch:
-      - amd64
-      - arm64
+    goos: darwin
+    goarch: amd64
     ldflags:
       - -s -w
       - -X skillguard/cmd.version={{ .Version }}
     env:
       - CGO_ENABLED=0
 
-  - id: skillguard-linux
+  - id: darwin-arm64
     binary: skillguard
     main: ./main.go
-    goos:
-      - linux
-    goarch:
-      - amd64
-      - arm64
+    goos: darwin
+    goarch: arm64
     ldflags:
       - -s -w
       - -X skillguard/cmd.version={{ .Version }}
     env:
       - CGO_ENABLED=0
 
-  - id: skillguard-windows
+  - id: linux-amd64
     binary: skillguard
     main: ./main.go
-    goos:
-      - windows
-    goarch:
-      - amd64
-      - arm64
+    goos: linux
+    goarch: amd64
+    ldflags:
+      - -s -w
+      - -X skillguard/cmd.version={{ .Version }}
+    env:
+      - CGO_ENABLED=0
+
+  - id: linux-arm64
+    binary: skillguard
+    main: ./main.go
+    goos: linux
+    goarch: arm64
+    ldflags:
+      - -s -w
+      - -X skillguard/cmd.version={{ .Version }}
+    env:
+      - CGO_ENABLED=0
+
+  - id: windows-amd64
+    binary: skillguard
+    main: ./main.go
+    goos: windows
+    goarch: amd64
+    ldflags:
+      - -s -w
+      - -X skillguard/cmd.version={{ .Version }}
+    env:
+      - CGO_ENABLED=0
+
+  - id: windows-arm64
+    binary: skillguard
+    main: ./main.go
+    goos: windows
+    goarch: arm64
     ldflags:
       - -s -w
       - -X skillguard/cmd.version={{ .Version }}
@@ -76,3 +99,6 @@ brews:
     homepage: "https://github.com/OSSAfrica/skillguard"
     description: "Security scanner for AI skill definitions"
     license: "MIT"
+    ids:
+      - darwin-amd64
+      - darwin-arm64
