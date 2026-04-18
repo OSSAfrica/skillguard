@@ -139,7 +139,10 @@ func FindSkillFiles(path string) ([]string, error) {
 			lowerName := strings.ToLower(fi.Name())
 			if strings.HasSuffix(lowerName, ".md") {
 				if lowerName == "skill.md" || lowerName == "skills.md" {
-					files = append(files, p)
+					content, readErr := os.ReadFile(p)
+					if readErr == nil && strings.HasPrefix(strings.TrimSpace(string(content)), "---") {
+						files = append(files, p)
+					}
 				}
 			}
 			return nil
@@ -149,7 +152,10 @@ func FindSkillFiles(path string) ([]string, error) {
 		}
 	} else {
 		if strings.HasSuffix(strings.ToLower(info.Name()), ".md") {
-			files = []string{path}
+			content, err := os.ReadFile(path)
+			if err == nil && strings.HasPrefix(strings.TrimSpace(string(content)), "---") {
+				files = []string{path}
+			}
 		}
 	}
 
