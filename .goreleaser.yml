@@ -22,15 +22,77 @@ changelog:
       - '^test:'
 
 builds:
-  - id: skillguard
+  - id: skillguard-darwin-amd64
+    binary: skillguard
+    main: ./main.go
+    goos:
+      - darwin
+    goarch:
+      - amd64
+    ldflags:
+      - -s -w
+      - -X skillguard/cmd.version={{ .Version }}
+    env:
+      - CGO_ENABLED=0
+
+  - id: skillguard-darwin-arm64
+    binary: skillguard
+    main: ./main.go
+    goos:
+      - darwin
+    goarch:
+      - arm64
+    ldflags:
+      - -s -w
+      - -X skillguard/cmd.version={{ .Version }}
+    env:
+      - CGO_ENABLED=0
+
+  - id: skillguard-linux-amd64
     binary: skillguard
     main: ./main.go
     goos:
       - linux
-      - darwin
+    goarch:
+      - amd64
+    ldflags:
+      - -s -w
+      - -X skillguard/cmd.version={{ .Version }}
+    env:
+      - CGO_ENABLED=0
+
+  - id: skillguard-linux-arm64
+    binary: skillguard
+    main: ./main.go
+    goos:
+      - linux
+    goarch:
+      - arm64
+    ldflags:
+      - -s -w
+      - -X skillguard/cmd.version={{ .Version }}
+    env:
+      - CGO_ENABLED=0
+
+  - id: skillguard-windows-amd64
+    binary: skillguard
+    main: ./main.go
+    goos:
       - windows
     goarch:
       - amd64
+    ldflags:
+      - -s -w
+      - -X skillguard/cmd.version={{ .Version }}
+    env:
+      - CGO_ENABLED=0
+
+  - id: skillguard-windows-arm64
+    binary: skillguard
+    main: ./main.go
+    goos:
+      - windows
+    goarch:
       - arm64
     ldflags:
       - -s -w
@@ -50,3 +112,6 @@ brews:
     homepage: "https://github.com/OSSAfrica/skillguard"
     description: "Security scanner for AI skill definitions"
     license: "MIT"
+    ids:
+      - skillguard-darwin-amd64
+      - skillguard-darwin-arm64
