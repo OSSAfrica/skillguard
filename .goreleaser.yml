@@ -22,51 +22,31 @@ changelog:
       - '^test:'
 
 builds:
-  - id: skillguard-darwin-amd64
+  - id: skillguard-darwin
     binary: skillguard
     main: ./main.go
     goos:
       - darwin
     goarch:
       - amd64
-    ldflags:
-      - -s -w
-      - -X skillguard/cmd.version={{ .Version }}
-    env:
-      - CGO_ENABLED=0
-
-  - id: skillguard-darwin-arm64
-    binary: skillguard
-    main: ./main.go
-    goos:
-      - darwin
-    goarch:
       - arm64
     ldflags:
       - -s -w
       - -X skillguard/cmd.version={{ .Version }}
     env:
       - CGO_ENABLED=0
+    archives:
+      - id: darwin-archive
+        formats:
+          - tar.gz
 
-  - id: skillguard-linux-amd64
+  - id: skillguard-linux
     binary: skillguard
     main: ./main.go
     goos:
       - linux
     goarch:
       - amd64
-    ldflags:
-      - -s -w
-      - -X skillguard/cmd.version={{ .Version }}
-    env:
-      - CGO_ENABLED=0
-
-  - id: skillguard-linux-arm64
-    binary: skillguard
-    main: ./main.go
-    goos:
-      - linux
-    goarch:
       - arm64
     ldflags:
       - -s -w
@@ -74,31 +54,24 @@ builds:
     env:
       - CGO_ENABLED=0
 
-  - id: skillguard-windows-amd64
+  - id: skillguard-windows
     binary: skillguard
     main: ./main.go
     goos:
       - windows
     goarch:
       - amd64
-    ldflags:
-      - -s -w
-      - -X skillguard/cmd.version={{ .Version }}
-    env:
-      - CGO_ENABLED=0
-
-  - id: skillguard-windows-arm64
-    binary: skillguard
-    main: ./main.go
-    goos:
-      - windows
-    goarch:
       - arm64
     ldflags:
       - -s -w
       - -X skillguard/cmd.version={{ .Version }}
     env:
       - CGO_ENABLED=0
+    archives:
+      - id: windows-archive
+        formats:
+          - tar.gz
+          - zip
 
 release:
   draft: false
@@ -112,7 +85,5 @@ brews:
     homepage: "https://github.com/OSSAfrica/skillguard"
     description: "Security scanner for AI skill definitions"
     license: "MIT"
-    goos: darwin
-    goarch:
-      - amd64
-      - arm64
+    ids:
+      - skillguard-darwin
