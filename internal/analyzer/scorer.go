@@ -184,6 +184,37 @@ func (s *Scorer) Analyze(path string, metadata *model.SkillMetadata, body string
 	return result
 }
 
+func (s *Scorer) AnalyzeReference(path string, body string) *model.AnalysisResult {
+	name := filepath.Base(path)
+	if ext := filepath.Ext(name); ext != "" {
+		name = strings.TrimSuffix(name, ext)
+	}
+
+	result := &model.AnalysisResult{
+		SkillName:      name,
+		FilePath:       path,
+		IsReference:    true,
+		Findings:       []model.Finding{},
+		CategoryScores: s.initCategoryScores(),
+	}
+
+	result.Findings = append(result.Findings, s.checkShellExecution(body)...)
+	result.Findings = append(result.Findings, s.checkFileAccess(body)...)
+	result.Findings = append(result.Findings, s.checkNetworkAccess(body)...)
+	result.Findings = append(result.Findings, s.checkCredentials(body)...)
+	result.Findings = append(result.Findings, s.checkObfuscatedCode(body)...)
+	result.Findings = append(result.Findings, s.checkHttpDependencies(body)...)
+	result.Findings = append(result.Findings, s.checkHiddenCharacters(body)...)
+
+	result.CategoryScores = s.calculateCategoryScores(result.Findings)
+
+	overallScore := s.calculateOverallScore(result.CategoryScores)
+	result.OverallScore = overallScore
+	result.Passed = overallScore >= s.threshold
+
+	return result
+}
+
 func (s *Scorer) initCategoryScores() []model.CategoryScore {
 	return []model.CategoryScore{
 		{Category: model.CatSupplyChain, Score: 100, Findings: 0},

@@ -115,7 +115,40 @@ func extractFrontmatter(content string) (*Frontmatter, string, error) {
 	return &fm, body, nil
 }
 
-func FindSkillFiles(path string) ([]string, error) {
+func ExtractBodyOnly(path string) (string, error) {
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return "", fmt.Errorf("failed to read file: %w", err)
+	}
+
+	frontmatter, body, err := extractFrontmatter(string(content))
+	if err != nil {
+		if err == ErrNoFrontmatter {
+			return string(content), nil
+		}
+		return string(content), nil
+	}
+
+	if frontmatter != nil && body == "" {
+		return "", fmt.Errorf("empty body in %s", path)
+	}
+
+	return body, nil
+}
+
+type FileType int
+
+const (
+	FileTypeSkill FileType = iota
+	FileTypeReference
+)
+
+type FoundFile struct {
+	Path     string
+	FileType FileType
+}
+
+func FindSkillFiles(path string) ([]FoundFile, error) {
 	path = strings.TrimSpace(path)
 
 	info, err := os.Stat(path)
@@ -123,7 +156,7 @@ func FindSkillFiles(path string) ([]string, error) {
 		return nil, fmt.Errorf("failed to access path: %w", err)
 	}
 
-	var files []string
+	var files []FoundFile
 
 	if info.IsDir() {
 		err = filepath.Walk(path, func(p string, fi os.FileInfo, err error) error {
@@ -131,17 +164,22 @@ func FindSkillFiles(path string) ([]string, error) {
 				return err
 			}
 			if fi.IsDir() {
-				if fi.Name() == "references" || fi.Name() == "templates" {
-					return filepath.SkipDir
-				}
 				return nil
 			}
 			lowerName := strings.ToLower(fi.Name())
 			if strings.HasSuffix(lowerName, ".md") {
-				if lowerName == "skill.md" || lowerName == "skills.md" {
-					content, readErr := os.ReadFile(p)
-					if readErr == nil && strings.HasPrefix(strings.TrimSpace(string(content)), "---") {
-						files = append(files, p)
+				content, readErr := os.ReadFile(p)
+				if readErr == nil {
+					isSkillFile := lowerName == "skill.md" || lowerName == "skills.md"
+
+					if strings.HasPrefix(strings.TrimSpace(string(content)), "---") {
+						fileType := FileTypeSkill
+						if !isSkillFile {
+							fileType = FileTypeReference
+						}
+						files = append(files, FoundFile{Path: p, FileType: fileType})
+					} else if !isSkillFile {
+						files = append(files, FoundFile{Path: p, FileType: FileTypeReference})
 					}
 				}
 			}
@@ -153,8 +191,10 @@ func FindSkillFiles(path string) ([]string, error) {
 	} else {
 		if strings.HasSuffix(strings.ToLower(info.Name()), ".md") {
 			content, err := os.ReadFile(path)
-			if err == nil && strings.HasPrefix(strings.TrimSpace(string(content)), "---") {
-				files = []string{path}
+			if err == nil {
+				if strings.HasPrefix(strings.TrimSpace(string(content)), "---") {
+					files = []FoundFile{{Path: path, FileType: FileTypeSkill}}
+				}
 			}
 		}
 	}

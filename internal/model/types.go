@@ -75,6 +75,7 @@ type AnalysisResult struct {
 	FilePath       string          `json:"file_path"`
 	OverallScore   int             `json:"overall_score"`
 	Passed         bool            `json:"passed"`
+	IsReference    bool            `json:"is_reference"`
 	Findings       []Finding       `json:"findings"`
 	Metadata       SkillMetadata   `json:"metadata"`
 	CategoryScores []CategoryScore `json:"category_scores"`
