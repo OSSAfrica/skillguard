@@ -24,8 +24,10 @@ builds:
   - id: darwin-amd64
     binary: skillguard
     main: ./main.go
-    goos: darwin
-    goarch: amd64
+    goos:
+      - darwin
+    goarch:
+      - amd64
     ldflags:
       - -s -w
       - -X skillguard/cmd.version={{ .Version }}
@@ -35,8 +37,10 @@ builds:
   - id: darwin-arm64
     binary: skillguard
     main: ./main.go
-    goos: darwin
-    goarch: arm64
+    goos:
+      - darwin
+    goarch:
+      - arm64
     ldflags:
       - -s -w
       - -X skillguard/cmd.version={{ .Version }}
@@ -46,8 +50,10 @@ builds:
   - id: linux-amd64
     binary: skillguard
     main: ./main.go
-    goos: linux
-    goarch: amd64
+    goos:
+      - linux
+    goarch:
+      - amd64
     ldflags:
       - -s -w
       - -X skillguard/cmd.version={{ .Version }}
@@ -57,8 +63,10 @@ builds:
   - id: linux-arm64
     binary: skillguard
     main: ./main.go
-    goos: linux
-    goarch: arm64
+    goos:
+      - linux
+    goarch:
+      - arm64
     ldflags:
       - -s -w
       - -X skillguard/cmd.version={{ .Version }}
@@ -68,8 +76,10 @@ builds:
   - id: windows-amd64
     binary: skillguard
     main: ./main.go
-    goos: windows
-    goarch: amd64
+    goos:
+      - windows
+    goarch:
+      - amd64
     ldflags:
       - -s -w
       - -X skillguard/cmd.version={{ .Version }}
@@ -79,8 +89,10 @@ builds:
   - id: windows-arm64
     binary: skillguard
     main: ./main.go
-    goos: windows
-    goarch: arm64
+    goos:
+      - windows
+    goarch:
+      - arm64
     ldflags:
       - -s -w
       - -X skillguard/cmd.version={{ .Version }}
