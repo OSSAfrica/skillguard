@@ -132,17 +132,13 @@ jobs:
         uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf # v6.0.0
         with:
           images: ghcr.io/${{ github.repository }}
-          tags: |
-            type=semver,pattern={{version}}
-            type=raw,value=latest
 
       - name: Build and push Docker image
         uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
         with:
           context: .
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: ghcr.io/${{ github.repository }}:latest
           platforms: linux/amd64,linux/arm64
 
   sign:
@@ -151,6 +147,7 @@ jobs:
     permissions:
       contents: write
       id-token: write
+      packages: write
     steps:
       - name: Set lowercase repo name
         run: |
@@ -167,9 +164,13 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Pull image to sign
+      - name: Wait for image to be available
         run: |
-          docker pull ghcr.io/${{ env.REPO }}:latest
+          for i in {1..5}; do
+            docker pull ghcr.io/${{ env.REPO }}:latest && break
+            echo "Retrying in 5s..."
+            sleep 5
+          done
 
       - name: Sign Docker image
         run: |
@@ -183,7 +184,7 @@ jobs:
     needs: [ versioning, release, docker ]
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       packages: read
     steps:
       - name: Set lowercase repo name
@@ -221,7 +222,7 @@ jobs:
         with:
           files: skillguard-sbom.spdx
           tag_name: ${{ needs.versioning.outputs.version }}
-          overwrite: true
+          overwrite_files: true
 
   notify:
     needs: [ versioning, release, docker, sign, sbom ]
@@ -236,17 +237,3 @@ jobs:
           echo "## Release Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Version: $VERSION" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          if [[ "$COMMIT_MSG" == *"BREAKING"* ]]; then
-            echo "Type: MAJOR release (breaking change detected)" >> $GITHUB_STEP_SUMMARY
-          elif [[ "$COMMIT_MSG" == feat:* ]]; then
-            echo "Type: MINOR release (new feature)" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "Type: PATCH release (bug fixes)" >> $GITHUB_STEP_SUMMARY
-          fi
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Artifacts:" >> $GITHUB_STEP_SUMMARY
-          echo "- Binaries: Available in GitHub Releases" >> $GITHUB_STEP_SUMMARY
-          echo "- Docker: ghcr.io/${{ github.repository }}:$VERSION" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Status: Release artifacts built and uploaded" >> $GITHUB_STEP_SUMMARY
