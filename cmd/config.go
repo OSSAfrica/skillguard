@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -78,15 +79,32 @@ func loadConfig() *Config {
 	v := viper.New()
 	v.SetConfigName("skillguard")
 	v.SetConfigType("yaml")
-	v.AddConfigPath("$HOME")
+
+	home := os.Getenv("HOME")
+	v.AddConfigPath(home)
 	v.AddConfigPath(".")
 
-	v.SetDefault("default_path", "~/.agents/skills")
+	v.SetDefault("default_path", home+"/.agents/skills")
 	v.SetDefault("threshold", 70)
 
-	v.ReadInConfig()
+	err := v.ReadInConfig()
+	if err != nil {
+		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
+			if writeErr := v.SafeWriteConfig(); writeErr != nil {
+				fmt.Printf("Failed to create default config: %v\n", writeErr)
+			} else {
+				fmt.Println("No config file found. Created default config at ~/.skillguard.yaml")
+			}
+		}
+	}
 
-	return &Config{viper: v}
+	cfg := &Config{viper: v}
+
+	if cfg.DefaultPath == "" {
+		cfg.DefaultPath = home + "/.agents/skills"
+	}
+
+	return cfg
 }
 
 func (c *Config) Save() error {
