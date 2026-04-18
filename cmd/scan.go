@@ -262,7 +262,7 @@ func printSkillResult(r *model.AnalysisResult, verbose bool) {
 		for _, f := range r.Findings {
 			severityIcon := getSeverityIcon(f.Severity)
 			sevColor := getSeverityColor(f.Severity)
-			_, err2 := sevColor.Printf("    %s [%s] %s", severityIcon, f.Severity, f.Description)
+			_, err2 := sevColor.Printf("    %s %s", severityIcon, f.Description)
 			if err2 != nil {
 				return
 			}

@@ -126,7 +126,7 @@ func ExtractBodyOnly(path string) (string, error) {
 		if err == ErrNoFrontmatter {
 			return string(content), nil
 		}
-		return "", err
+		return string(content), nil
 	}
 
 	if frontmatter != nil && body == "" {
@@ -170,19 +170,16 @@ func FindSkillFiles(path string) ([]FoundFile, error) {
 			if strings.HasSuffix(lowerName, ".md") {
 				content, readErr := os.ReadFile(p)
 				if readErr == nil {
+					isSkillFile := lowerName == "skill.md" || lowerName == "skills.md"
+
 					if strings.HasPrefix(strings.TrimSpace(string(content)), "---") {
-						isRef := strings.Contains(p, "/references/") || strings.Contains(p, "\\references\\")
 						fileType := FileTypeSkill
-						if isRef {
+						if !isSkillFile {
 							fileType = FileTypeReference
 						}
 						files = append(files, FoundFile{Path: p, FileType: fileType})
-					} else {
-						isRef := strings.Contains(p, "/references/") || strings.Contains(p, "\\references\\") ||
-							strings.Contains(p, "/templates/") || strings.Contains(p, "\\templates\\")
-						if isRef {
-							files = append(files, FoundFile{Path: p, FileType: FileTypeReference})
-						}
+					} else if !isSkillFile {
+						files = append(files, FoundFile{Path: p, FileType: FileTypeReference})
 					}
 				}
 			}
