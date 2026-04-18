@@ -20,6 +20,7 @@ var (
 	threshold  int
 	outputFile string
 	quietMode  bool
+	verbose    bool
 )
 
 var scanCmd = &cobra.Command{
@@ -39,6 +40,8 @@ func init() {
 		"Output JSON report to file (optional)")
 	scanCmd.Flags().BoolVarP(&quietMode, "quiet", "q", false,
 		"Minimal output - just pass/fail status")
+	scanCmd.Flags().BoolVarP(&verbose, "verbose", "v", false,
+		"Show all findings and detailed breakdown")
 
 	rootCmd.AddCommand(scanCmd)
 }
@@ -152,14 +155,14 @@ func printColoredReport(report *model.ScanReport) {
 	fmt.Println(strings.Repeat("─", 70))
 
 	for _, result := range report.Results {
-		printSkillResult(&result)
+		printSkillResult(&result, verbose)
 	}
 
 	fmt.Println(strings.Repeat("─", 70))
 	fmt.Printf("Summary: %d passed, %d failed\n", report.Passed, report.Failed)
 }
 
-func printSkillResult(r *model.AnalysisResult) {
+func printSkillResult(r *model.AnalysisResult, verbose bool) {
 	if r.Passed {
 		color.Green("✓ %s", r.SkillName)
 	} else {
