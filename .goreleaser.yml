@@ -106,7 +106,7 @@ homebrew_casks:
   - repository:
       owner: OSSAfrica
       name: homebrew-skillguard
-      token: "{{ .Env.GITHUB_TOKEN }}"
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
     homepage: "https://github.com/OSSAfrica/skillguard"
     description: "Security scanner for AI skill definitions"
     license: "MIT"
