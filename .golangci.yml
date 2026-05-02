@@ -12,7 +12,6 @@ linters:
     - misspell
     - gosimple
     - ineffassign
-    - typecheck
     - prealloc
     - bodyclose
 
