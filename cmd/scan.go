@@ -296,6 +296,8 @@ func getScoreColor(score int) *color.Color {
 
 func getSeverityColor(sev model.Severity) *color.Color {
 	switch sev {
+	case model.SeverityCritical:
+		return color.New(color.FgHiRed)
 	case model.SeverityHigh:
 		return color.New(color.FgRed)
 	case model.SeverityMedium:
@@ -307,6 +309,8 @@ func getSeverityColor(sev model.Severity) *color.Color {
 
 func getSeverityIcon(sev model.Severity) string {
 	switch sev {
+	case model.SeverityCritical:
+		return "[CRITICAL]"
 	case model.SeverityHigh:
 		return "[HIGH]"
 	case model.SeverityMedium:
