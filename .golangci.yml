@@ -10,7 +10,6 @@ linters:
     - unused
     - gocyclo
     - misspell
-    - gosimple
     - ineffassign
     - prealloc
     - bodyclose
