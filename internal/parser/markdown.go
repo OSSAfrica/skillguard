@@ -56,7 +56,7 @@ func parseAllowedTools(v interface{}) []string {
 }
 
 func ParseSkillFile(path string) (*model.SkillMetadata, string, error) {
-	content, err := os.ReadFile(path)
+	content, err := os.ReadFile(path) // #nosec G304 -- CLI tool reads user-specified paths by design
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to read file: %w", err)
 	}
@@ -116,7 +116,7 @@ func extractFrontmatter(content string) (*Frontmatter, string, error) {
 }
 
 func ExtractBodyOnly(path string) (string, error) {
-	content, err := os.ReadFile(path)
+	content, err := os.ReadFile(path) // #nosec G304 -- CLI tool reads user-specified paths by design
 	if err != nil {
 		return "", fmt.Errorf("failed to read file: %w", err)
 	}
@@ -168,7 +168,7 @@ func FindSkillFiles(path string) ([]FoundFile, error) {
 			}
 			lowerName := strings.ToLower(fi.Name())
 			if strings.HasSuffix(lowerName, ".md") {
-				content, readErr := os.ReadFile(p) //nolint:gosec // G122: trusted path from filepath.Walk
+				content, readErr := os.ReadFile(p) // #nosec G304,G122 -- trusted path from filepath.Walk
 				if readErr == nil {
 					isSkillFile := lowerName == "skill.md" || lowerName == "skills.md"
 
@@ -190,7 +190,7 @@ func FindSkillFiles(path string) ([]FoundFile, error) {
 		}
 	} else {
 		if strings.HasSuffix(strings.ToLower(info.Name()), ".md") {
-			content, err := os.ReadFile(path)
+			content, err := os.ReadFile(path) // #nosec G304 -- CLI tool reads user-specified paths by design
 			if err == nil {
 				if strings.HasPrefix(strings.TrimSpace(string(content)), "---") {
 					files = []FoundFile{{Path: path, FileType: FileTypeSkill}}

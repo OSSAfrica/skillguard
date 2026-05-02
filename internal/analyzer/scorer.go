@@ -717,7 +717,7 @@ func (s *Scorer) analyzeReferencedScripts(basePath string, files []string) []mod
 			scriptPath = filepath.Join(baseDir, scriptFile)
 		}
 
-		content, err := os.ReadFile(scriptPath)
+		content, err := os.ReadFile(scriptPath) // #nosec G304 -- path derived from WalkDir in user-specified directory
 		if err != nil {
 			continue
 		}
