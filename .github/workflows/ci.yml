@@ -26,9 +26,18 @@ jobs:
         run: go test -v -race -cover ./...
 
       - name: Run lint
-        run: |
-          go vet ./...
-          go fmt ./...
+        run: go vet ./...
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@1e7e51e771db61008b38414a730f564565cf7c20 # v9.2.0
+        with:
+          version: latest
+          args: --timeout=5m
+
+      - name: Run gosec
+        uses: securego/gosec@4a3bd8af174872c778439083ded7adbf3747e770 # v2.26.1
+        with:
+          args: -exclude-generated -exclude-dir=examples ./...
 
   build:
     runs-on: ubuntu-latest
