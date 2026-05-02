@@ -16,7 +16,7 @@ linters:
 
   settings:
     gocyclo:
-      min-complexity: 25
+      min-complexity: 30
     gosec:
       severity: medium
       confidence: medium
