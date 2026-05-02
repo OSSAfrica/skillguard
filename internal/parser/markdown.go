@@ -168,7 +168,7 @@ func FindSkillFiles(path string) ([]FoundFile, error) {
 			}
 			lowerName := strings.ToLower(fi.Name())
 			if strings.HasSuffix(lowerName, ".md") {
-				content, readErr := os.ReadFile(p)
+				content, readErr := os.ReadFile(p) //nolint:gosec // G122: trusted path from filepath.Walk
 				if readErr == nil {
 					isSkillFile := lowerName == "skill.md" || lowerName == "skills.md"
 

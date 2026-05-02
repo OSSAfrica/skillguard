@@ -142,20 +142,6 @@ func expandPath(path string) string {
 	return path
 }
 
-func parsePaths(input string, defaultPath string) []string {
-	var paths []string
-	for _, p := range strings.Split(input, ",") {
-		p = strings.TrimSpace(p)
-		if p != "" {
-			paths = append(paths, p)
-		}
-	}
-	if len(paths) == 0 {
-		paths = []string{defaultPath}
-	}
-	return paths
-}
-
 func printColoredReport(report *model.ScanReport) {
 	fmt.Println()
 	color.Cyan("╔══════════════════════════════════════════════════════════════════╗")
@@ -325,5 +311,5 @@ func writeJSONReport(path string, report *model.ScanReport) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, data, 0644)
+	return os.WriteFile(path, data, 0600)
 }

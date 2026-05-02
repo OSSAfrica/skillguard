@@ -203,7 +203,7 @@ Body`,
 				path = filepath.Join(tmpDir, "nonexistent.md")
 			} else {
 				path = filepath.Join(tmpDir, "test-file.md")
-				if err := os.WriteFile(path, []byte(tt.content), 0644); err != nil {
+				if err := os.WriteFile(path, []byte(tt.content), 0644); err != nil { //nolint:gosec // G306: test temp dir
 					t.Fatal(err)
 				}
 			}
@@ -277,7 +277,7 @@ name: test
 				path = filepath.Join(tmpDir, "nonexistent.md")
 			} else {
 				path = filepath.Join(tmpDir, "test.md")
-				if err := os.WriteFile(path, []byte(tt.content), 0644); err != nil {
+				if err := os.WriteFile(path, []byte(tt.content), 0644); err != nil { //nolint:gosec // G306: test temp dir
 					t.Fatal(err)
 				}
 			}
@@ -320,16 +320,16 @@ Body`
 
 This is a reference file.`
 
-	if err := os.WriteFile(skillFile, []byte(skillContent), 0644); err != nil {
+	if err := os.WriteFile(skillFile, []byte(skillContent), 0644); err != nil { //nolint:gosec // G306: test temp dir
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(referenceFile, []byte(referenceContent), 0644); err != nil {
+	if err := os.WriteFile(referenceFile, []byte(referenceContent), 0644); err != nil { //nolint:gosec // G306: test temp dir
 		t.Fatal(err)
 	}
 	if err := os.MkdirAll(nestedSkillDir, 0755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(nestedSkillFile, []byte(skillContent), 0644); err != nil {
+	if err := os.WriteFile(nestedSkillFile, []byte(skillContent), 0644); err != nil { //nolint:gosec // G306: test temp dir
 		t.Fatal(err)
 	}
 

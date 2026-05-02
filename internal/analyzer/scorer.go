@@ -1,6 +1,7 @@
 package analyzer
 
 import (
+	"fmt"
 	"math"
 	"os"
 	"path/filepath"
@@ -656,7 +657,7 @@ func (s *Scorer) checkHiddenCharacters(body string) []model.Finding {
 					Severity:    model.SeverityHigh,
 					Description: "Hidden characters detected (zero-width, RTL, control chars)",
 					Deduction:   25,
-					Pattern:     "Found " + string(rune(len(matches))) + " hidden character(s)",
+					Pattern:     fmt.Sprintf("Found %d hidden character(s)", len(matches)),
 					ScoreCat:    model.CatSecurity,
 				})
 				break
@@ -683,7 +684,7 @@ func (s *Scorer) checkHiddenCharacters(body string) []model.Finding {
 			Severity:    model.SeverityMedium,
 			Description: "Potential homoglyph characters detected (cyrillic lookalikes)",
 			Deduction:   15,
-			Pattern:     "Found " + string(rune(len(homoglyphs))) + " potential homoglyph(s)",
+			Pattern:     fmt.Sprintf("Found %d potential homoglyph(s)", len(homoglyphs)),
 			ScoreCat:    model.CatSecurity,
 		})
 	}

