@@ -1,6 +1,7 @@
 package analyzer
 
 import (
+	"fmt"
 	"math"
 	"os"
 	"path/filepath"
@@ -70,9 +71,9 @@ var (
 
 	injectionPatterns = []*regexp.Regexp{
 		regexp.MustCompile(`(?i)(concat|join|interpolate|format)\s*\([^)]*user`),
-		regexp.MustCompile(`(?i)(prompt|instruction|system)\s*=\s*[^;]+(\+|\.)`),
+		regexp.MustCompile(`(?i)(prompt|instruction|system)\s*=\s*[^;]+([+.])`),
 		regexp.MustCompile(`(?i)(system|user)\s+message\s*:\s*.*\+.*`),
-		regexp.MustCompile(`(?i)replace.*\{.*\}`),
+		regexp.MustCompile(`(?i)replace.*\{.*}`),
 		regexp.MustCompile(`(?i)template\s*\(.*\$\{`),
 	}
 
@@ -82,7 +83,7 @@ var (
 		regexp.MustCompile(`(?i)setTimeout\s*\(\s*['"]`),
 		regexp.MustCompile(`(?i)setInterval\s*\(\s*['"]`),
 		regexp.MustCompile("(?i)exec\\s*\\(\\s*[`']"),
-		regexp.MustCompile(`(?i)\.replace\(.*\/[a-z]+`),
+		regexp.MustCompile(`(?i)\.replace\(.*/[a-z]+`),
 		regexp.MustCompile(`(?i)atob\(|btoa\(`),
 		regexp.MustCompile(`(?i)fromCharCode`),
 		regexp.MustCompile(`(?i)(unescape|encodeURIComponent|decodeURIComponent)\s*\(`),
@@ -90,7 +91,7 @@ var (
 
 	gitDependencyPatterns = []*regexp.Regexp{
 		regexp.MustCompile(`(?i)git\s+(clone|checkout|fetch|pull)`),
-		regexp.MustCompile(`(?i)git://[^\s]+`),
+		regexp.MustCompile(`(?i)git://\S+`),
 		regexp.MustCompile(`(?i)git\+https://`),
 		regexp.MustCompile(`(?i)GIT_SSH_COMMAND`),
 		regexp.MustCompile(`(?i)\.git/config`),
@@ -101,9 +102,9 @@ var (
 		regexp.MustCompile(`(?i)curl\s+.*\|\s*sh`),
 		regexp.MustCompile(`(?i)wget\s+.*\|\s*sh`),
 		regexp.MustCompile(`(?i)curl\s+.*\|\s*bash`),
-		regexp.MustCompile(`(?i)http[s]?://[^\s]+/install`),
-		regexp.MustCompile(`(?i)http[s]?://[^\s]+\.sh`),
-		regexp.MustCompile(`(?i)http[s]?://[^\s]+\.py.*exec`),
+		regexp.MustCompile(`(?i)https?://\S+/install`),
+		regexp.MustCompile(`(?i)https?://\S+\.sh`),
+		regexp.MustCompile(`(?i)https?://\S+\.py.*exec`),
 		regexp.MustCompile(`(?i)os\.system\s*\(\s*['"]http`),
 		regexp.MustCompile(`(?i)requests\.get\s*\(\s*['"]http`),
 		regexp.MustCompile(`(?i)subprocess.*http`),
@@ -129,12 +130,12 @@ var (
 	}
 
 	referencePatterns = []*regexp.Regexp{
-		regexp.MustCompile(`(?i)\[([^\]]+)\]\(([^)]+\.(py|js|ts|sh|rb|go|rs))\)`),
+		regexp.MustCompile(`(?i)\[([^]]+)]\(([^)]+\.(py|js|ts|sh|rb|go|rs))\)`),
 		regexp.MustCompile(`(?i)scripts?/[^/\s]+\.(py|js|ts|sh|rb|go|rs)`),
 		regexp.MustCompile(`(?i)import\s+(?:from\s+)?['"](\.\./)?[^'"]+\.(py|js|ts)`),
 		regexp.MustCompile(`(?i)require\s*\(\s*['"](\.\./)?[^'"]+\.(js|ts)`),
 		regexp.MustCompile(`(?i)<script\s+src=`),
-		regexp.MustCompile(`(?i)source\s+([^\s]+\.(sh|bash))`),
+		regexp.MustCompile(`(?i)source\s+(\S+\.(sh|bash))`),
 	}
 )
 
@@ -656,7 +657,7 @@ func (s *Scorer) checkHiddenCharacters(body string) []model.Finding {
 					Severity:    model.SeverityHigh,
 					Description: "Hidden characters detected (zero-width, RTL, control chars)",
 					Deduction:   25,
-					Pattern:     "Found " + string(rune(len(matches))) + " hidden character(s)",
+					Pattern:     fmt.Sprintf("Found %d hidden character(s)", len(matches)),
 					ScoreCat:    model.CatSecurity,
 				})
 				break
@@ -683,7 +684,7 @@ func (s *Scorer) checkHiddenCharacters(body string) []model.Finding {
 			Severity:    model.SeverityMedium,
 			Description: "Potential homoglyph characters detected (cyrillic lookalikes)",
 			Deduction:   15,
-			Pattern:     "Found " + string(rune(len(homoglyphs))) + " potential homoglyph(s)",
+			Pattern:     fmt.Sprintf("Found %d potential homoglyph(s)", len(homoglyphs)),
 			ScoreCat:    model.CatSecurity,
 		})
 	}
@@ -716,7 +717,7 @@ func (s *Scorer) analyzeReferencedScripts(basePath string, files []string) []mod
 			scriptPath = filepath.Join(baseDir, scriptFile)
 		}
 
-		content, err := os.ReadFile(scriptPath)
+		content, err := os.ReadFile(scriptPath) // #nosec G304 -- path derived from WalkDir in user-specified directory
 		if err != nil {
 			continue
 		}

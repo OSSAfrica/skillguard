@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
@@ -89,7 +90,8 @@ func loadConfig() *Config {
 
 	err := v.ReadInConfig()
 	if err != nil {
-		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
+		var configNotFound viper.ConfigFileNotFoundError
+		if errors.As(err, &configNotFound) {
 			if writeErr := v.SafeWriteConfig(); writeErr != nil {
 				fmt.Printf("Failed to create default config: %v\n", writeErr)
 			} else {
