@@ -1,0 +1,27 @@
+name: Scan AI Skills (PR)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Scan AI Skills
+        uses: ossafrica/skillguard-action@v1
+        with:
+          path: './skills'
+          threshold: 70
+          output: 'skillguard-report.json'
+
+      - name: Upload scan report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: skillguard-report
+          path: skillguard-report.json

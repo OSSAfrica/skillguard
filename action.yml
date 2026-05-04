@@ -1,0 +1,131 @@
+name: 'SkillGuard'
+description: 'Security scanner for AI agent skill definitions — detects vulnerabilities, dangerous permissions, and supply chain risks'
+author: 'OSSAfrica'
+
+branding:
+  icon: 'shield'
+  color: 'blue'
+
+inputs:
+  path:
+    description: 'Path to scan (file, directory, or comma-separated paths)'
+    required: false
+    default: '.'
+  threshold:
+    description: 'Minimum score to pass (0-100)'
+    required: false
+    default: '70'
+  output:
+    description: 'Output JSON report to file'
+    required: false
+    default: ''
+  quiet:
+    description: 'Minimal output - just pass/fail'
+    required: false
+    default: 'false'
+  verbose:
+    description: 'Show all findings and detailed breakdown'
+    required: false
+    default: 'false'
+
+outputs:
+  result:
+    description: 'Overall scan result: passed or failed'
+    value: ${{ steps.scan.outputs.result }}
+  total_skills:
+    description: 'Number of skills scanned'
+    value: ${{ steps.scan.outputs.total_skills }}
+  passed_count:
+    description: 'Number of skills that passed'
+    value: ${{ steps.scan.outputs.passed_count }}
+  failed_count:
+    description: 'Number of skills that failed'
+    value: ${{ steps.scan.outputs.failed_count }}
+  report_path:
+    description: 'Path to the JSON report file (if output was specified)'
+    value: ${{ steps.scan.outputs.report_path }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Run SkillGuard scan
+      id: scan
+      shell: bash
+      env:
+        INPUT_PATH: ${{ inputs.path }}
+        INPUT_THRESHOLD: ${{ inputs.threshold }}
+        INPUT_OUTPUT: ${{ inputs.output }}
+        INPUT_QUIET: ${{ inputs.quiet }}
+        INPUT_VERBOSE: ${{ inputs.verbose }}
+      run: |
+        # Pull the SkillGuard Docker image
+        IMAGE="ghcr.io/ossafrica/skillguard:latest"
+        docker pull "${IMAGE}"
+
+        # Create a temporary directory for container output
+        TEMP_DIR=$(mktemp -d)
+        CONTAINER_OUTPUT="${TEMP_DIR}/skillguard-report.json"
+
+        # Run the container with output to temp directory
+        set +e
+        if [[ -n "${INPUT_OUTPUT}" ]]; then
+          docker run --rm \
+            -v "${GITHUB_WORKSPACE}:/workspace" \
+            -v "${TEMP_DIR}:/tmp" \
+            -w /workspace \
+            --user root \
+            "${IMAGE}" \
+            scan \
+            --path "${INPUT_PATH}" \
+            --threshold "${INPUT_THRESHOLD}" \
+            --output "/tmp/skillguard-report.json" \
+            $( [[ "${INPUT_QUIET}" == "true" ]] && echo "--quiet" ) \
+            $( [[ "${INPUT_VERBOSE}" == "true" ]] && echo "--verbose" )
+        else
+          docker run --rm \
+            -v "${GITHUB_WORKSPACE}:/workspace" \
+            -w /workspace \
+            "${IMAGE}" \
+            scan \
+            --path "${INPUT_PATH}" \
+            --threshold "${INPUT_THRESHOLD}" \
+            $( [[ "${INPUT_QUIET}" == "true" ]] && echo "--quiet" ) \
+            $( [[ "${INPUT_VERBOSE}" == "true" ]] && echo "--verbose" )
+        fi
+        EXIT_CODE=$?
+
+        # Set output based on exit code
+        if [[ ${EXIT_CODE} -eq 0 ]]; then
+          echo "result=passed" >> "${GITHUB_OUTPUT}"
+        else
+          echo "result=failed" >> "${GITHUB_OUTPUT}"
+        fi
+
+        # Copy the report from temp directory to workspace if output was specified
+        if [[ -n "${INPUT_OUTPUT}" && -f "${TEMP_DIR}/skillguard-report.json" ]]; then
+          # Ensure destination directory exists
+          mkdir -p "$(dirname "${GITHUB_WORKSPACE}/${INPUT_OUTPUT}")"
+        
+          sudo chmod 644 "${TEMP_DIR}/skillguard-report.json"
+          cp "${TEMP_DIR}/skillguard-report.json" "${GITHUB_WORKSPACE}/${INPUT_OUTPUT}"
+          REPORT="${GITHUB_WORKSPACE}/${INPUT_OUTPUT}"
+          # Check for nulls
+          TOTAL=$(jq -r '.total_skills // 0' "${REPORT}" || echo "0")
+          PASSED=$(jq -r '.passed // 0' "${REPORT}" || echo "0")
+          FAILED=$(jq -r '.failed // 0' "${REPORT}" || echo "0")
+        
+          echo "total_skills=${TOTAL}" >> "${GITHUB_OUTPUT}"
+          echo "passed_count=${PASSED}" >> "${GITHUB_OUTPUT}"
+          echo "failed_count=${FAILED}" >> "${GITHUB_OUTPUT}"
+          echo "report_path=${INPUT_OUTPUT}" >> "${GITHUB_OUTPUT}"
+        else
+          # Set defaults
+          echo "total_skills=0" >> "${GITHUB_OUTPUT}"
+          echo "passed_count=0" >> "${GITHUB_OUTPUT}"
+          echo "failed_count=0" >> "${GITHUB_OUTPUT}"
+          echo "report_path=" >> "${GITHUB_OUTPUT}"
+        fi
+        
+        # Clean up
+        rm -rf "${TEMP_DIR}"
+        exit ${EXIT_CODE}

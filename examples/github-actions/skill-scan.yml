@@ -3,7 +3,7 @@
 # Copy this file to your skill repository at:
 #   .github/workflows/skillguard.yml
 #
-# Then customize the 'path' argument below to point to your skills directory.
+# Then customize the 'path' input below to point to your skills directory.
 
 name: SkillGuard Security Scan
 
@@ -23,10 +23,13 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Run SkillGuard scan
-        uses: docker://OSSAfrica/skillguard:latest
+      - name: Scan AI Skills
+        id: skillguard
+        uses: ossafrica/skillguard-action@v1
         with:
-          args: scan --path ./skills --threshold 70 --output skillguard-report.json
+          path: './skills'
+          threshold: 70
+          output: 'skillguard-report.json'
 
       - name: Upload report
         uses: actions/upload-artifact@v4
@@ -34,13 +37,3 @@ jobs:
         with:
           name: skillguard-report
           path: skillguard-report.json
-
-      - name: Fail if security issues found
-        run: |
-          if [ -f skillguard-report.json ]; then
-            FAILED=$(grep -o '"failed":[0-9]*' skillguard-report.json | grep -o '[0-9]*')
-            if [ "$FAILED" -gt "0" ]; then
-              echo "Security scan found $FAILED skill(s) failing security checks"
-              exit 1
-            fi
-          fi
