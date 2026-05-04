@@ -1,0 +1,58 @@
+name: Action CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'action.yml'
+      - '.github/workflows/action-ci.yml'
+  pull_request:
+    paths:
+      - 'action.yml'
+      - '.github/workflows/action-ci.yml'
+
+jobs:
+  test-action:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Test action with default inputs
+        id: default
+        uses: ./
+        with:
+          path: '.'
+          threshold: 70
+        continue-on-error: true
+
+      - name: Test action with JSON output
+        id: with-output
+        uses: ./
+        with:
+          path: '.'
+          threshold: 70
+          output: 'test-report.json'
+          verbose: true
+        continue-on-error: true
+
+      - name: Verify outputs are set
+        run: |
+          echo "Default run result: ${{ steps.default.outputs.result }}"
+          echo "Output run result:  ${{ steps.with-output.outputs.result }}"
+          echo "Total skills:       ${{ steps.with-output.outputs.total_skills }}"
+          echo "Passed:             ${{ steps.with-output.outputs.passed_count }}"
+          echo "Failed:             ${{ steps.with-output.outputs.failed_count }}"
+          echo "Report path:        ${{ steps.with-output.outputs.report_path }}"
+
+          if [[ -z "${{ steps.with-output.outputs.result }}" ]]; then
+            echo "ERROR: result output was not set"
+            exit 1
+          fi
+
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: action-test-report
+          path: test-report.json
+          if-no-files-found: ignore

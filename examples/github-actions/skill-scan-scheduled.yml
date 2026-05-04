@@ -1,0 +1,37 @@
+name: Scheduled Skill Scan
+
+on:
+  schedule:
+    # Runs every day at 08:00 UTC
+    - cron: '0 8 * * *'
+  workflow_dispatch:
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Scan AI Skills
+        id: skillguard
+        uses: ossafrica/skillguard-action@v1
+        with:
+          path: '.'
+          threshold: 80
+          output: 'skillguard-report.json'
+          verbose: true
+
+      - name: Print scan summary
+        if: always()
+        run: |
+          echo "Result:       ${{ steps.skillguard.outputs.result }}"
+          echo "Total skills: ${{ steps.skillguard.outputs.total_skills }}"
+          echo "Passed:       ${{ steps.skillguard.outputs.passed_count }}"
+          echo "Failed:       ${{ steps.skillguard.outputs.failed_count }}"
+
+      - name: Upload scan report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: skillguard-report-${{ github.run_id }}
+          path: skillguard-report.json

@@ -1,0 +1,117 @@
+name: 'SkillGuard'
+description: 'Security scanner for AI agent skill definitions — detects vulnerabilities, dangerous permissions, and supply chain risks'
+author: 'OSSAfrica'
+
+branding:
+  icon: 'shield'
+  color: 'blue'
+
+inputs:
+  path:
+    description: 'Path to scan (file, directory, or comma-separated paths)'
+    required: false
+    default: '.'
+  threshold:
+    description: 'Minimum score to pass (0-100)'
+    required: false
+    default: '70'
+  output:
+    description: 'Output JSON report to file'
+    required: false
+    default: ''
+  quiet:
+    description: 'Minimal output - just pass/fail'
+    required: false
+    default: 'false'
+  verbose:
+    description: 'Show all findings and detailed breakdown'
+    required: false
+    default: 'false'
+
+outputs:
+  result:
+    description: 'Overall scan result: passed or failed'
+    value: ${{ steps.scan.outputs.result }}
+  total_skills:
+    description: 'Number of skills scanned'
+    value: ${{ steps.scan.outputs.total_skills }}
+  passed_count:
+    description: 'Number of skills that passed'
+    value: ${{ steps.scan.outputs.passed_count }}
+  failed_count:
+    description: 'Number of skills that failed'
+    value: ${{ steps.scan.outputs.failed_count }}
+  report_path:
+    description: 'Path to the JSON report file (if output was specified)'
+    value: ${{ steps.scan.outputs.report_path }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Run SkillGuard scan
+      id: scan
+      shell: bash
+      env:
+        INPUT_PATH: ${{ inputs.path }}
+        INPUT_THRESHOLD: ${{ inputs.threshold }}
+        INPUT_OUTPUT: ${{ inputs.output }}
+        INPUT_QUIET: ${{ inputs.quiet }}
+        INPUT_VERBOSE: ${{ inputs.verbose }}
+      run: |
+        # Build the skillguard command arguments
+        ARGS="scan --path \"${INPUT_PATH}\" --threshold ${INPUT_THRESHOLD}"
+
+        if [[ -n "${INPUT_OUTPUT}" ]]; then
+          ARGS="${ARGS} --output \"${INPUT_OUTPUT}\""
+        fi
+
+        if [[ "${INPUT_QUIET}" == "true" ]]; then
+          ARGS="${ARGS} --quiet"
+        fi
+
+        if [[ "${INPUT_VERBOSE}" == "true" ]]; then
+          ARGS="${ARGS} --verbose"
+        fi
+
+        # Pull and run the SkillGuard Docker image
+        IMAGE="ghcr.io/ossafrica/skillguard:latest"
+        docker pull "${IMAGE}"
+
+        set +e
+        docker run --rm \
+          -v "${GITHUB_WORKSPACE}:/workspace" \
+          -w /workspace \
+          "${IMAGE}" \
+          scan \
+          --path "${INPUT_PATH}" \
+          --threshold "${INPUT_THRESHOLD}" \
+          $( [[ -n "${INPUT_OUTPUT}" ]] && echo "--output ${INPUT_OUTPUT}" ) \
+          $( [[ "${INPUT_QUIET}" == "true" ]] && echo "--quiet" ) \
+          $( [[ "${INPUT_VERBOSE}" == "true" ]] && echo "--verbose" )
+        EXIT_CODE=$?
+        set -e
+
+        # Parse outputs from the JSON report if available
+        if [[ -n "${INPUT_OUTPUT}" && -f "${GITHUB_WORKSPACE}/${INPUT_OUTPUT}" ]]; then
+          REPORT="${GITHUB_WORKSPACE}/${INPUT_OUTPUT}"
+          TOTAL=$(jq '.total_skills' "${REPORT}")
+          PASSED=$(jq '.passed' "${REPORT}")
+          FAILED=$(jq '.failed' "${REPORT}")
+          echo "total_skills=${TOTAL}" >> "${GITHUB_OUTPUT}"
+          echo "passed_count=${PASSED}" >> "${GITHUB_OUTPUT}"
+          echo "failed_count=${FAILED}" >> "${GITHUB_OUTPUT}"
+          echo "report_path=${INPUT_OUTPUT}" >> "${GITHUB_OUTPUT}"
+        else
+          echo "total_skills=" >> "${GITHUB_OUTPUT}"
+          echo "passed_count=" >> "${GITHUB_OUTPUT}"
+          echo "failed_count=" >> "${GITHUB_OUTPUT}"
+          echo "report_path=" >> "${GITHUB_OUTPUT}"
+        fi
+
+        if [[ ${EXIT_CODE} -eq 0 ]]; then
+          echo "result=passed" >> "${GITHUB_OUTPUT}"
+        else
+          echo "result=failed" >> "${GITHUB_OUTPUT}"
+        fi
+
+        exit ${EXIT_CODE}
