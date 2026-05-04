@@ -97,6 +97,7 @@ runs:
 
         # Copy the report from temp directory to workspace if output was specified
         if [[ -n "${INPUT_OUTPUT}" && -f "${TEMP_DIR}/skillguard-report.json" ]]; then
+          chmod 644 "${TEMP_DIR}/skillguard-report.json"
           cp "${TEMP_DIR}/skillguard-report.json" "${GITHUB_WORKSPACE}/${INPUT_OUTPUT}"
           REPORT="${GITHUB_WORKSPACE}/${INPUT_OUTPUT}"
           TOTAL=$(jq '.total_skills' "${REPORT}")
@@ -112,9 +113,6 @@ runs:
           echo "failed_count=" >> "${GITHUB_OUTPUT}"
           echo "report_path=" >> "${GITHUB_OUTPUT}"
         fi
-
-        # Clean up temp directory
-        rm -rf "${TEMP_DIR}"
 
         if [[ ${EXIT_CODE} -eq 0 ]]; then
           echo "result=passed" >> "${GITHUB_OUTPUT}"
