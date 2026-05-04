@@ -73,6 +73,7 @@ runs:
             -v "${GITHUB_WORKSPACE}:/workspace" \
             -v "${TEMP_DIR}:/tmp_output" \
             -w /workspace \
+            --user root \
             "${IMAGE}" \
             scan \
             --path "${INPUT_PATH}" \
