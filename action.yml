@@ -71,14 +71,14 @@ runs:
         if [[ -n "${INPUT_OUTPUT}" ]]; then
           docker run --rm \
             -v "${GITHUB_WORKSPACE}:/workspace" \
-            -v "${TEMP_DIR}:/tmp_output" \
+            -v "${TEMP_DIR}:/tmp" \
             -w /workspace \
             --user root \
             "${IMAGE}" \
             scan \
             --path "${INPUT_PATH}" \
             --threshold "${INPUT_THRESHOLD}" \
-            --output "/tmp_output/skillguard-report.json" \
+            --output "/tmp/skillguard-report.json" \
             $( [[ "${INPUT_QUIET}" == "true" ]] && echo "--quiet" ) \
             $( [[ "${INPUT_VERBOSE}" == "true" ]] && echo "--verbose" )
         else
@@ -96,8 +96,8 @@ runs:
         set -e
 
         # Copy the report from temp directory to workspace if output was specified
-        if [[ -n "${INPUT_OUTPUT}" && -f "${CONTAINER_OUTPUT}" ]]; then
-          cp "${CONTAINER_OUTPUT}" "${GITHUB_WORKSPACE}/${INPUT_OUTPUT}"
+        if [[ -n "${INPUT_OUTPUT}" && -f "${TEMP_DIR}/skillguard-report.json" ]]; then
+          cp "${TEMP_DIR}/skillguard-report.json" "${GITHUB_WORKSPACE}/${INPUT_OUTPUT}"
           REPORT="${GITHUB_WORKSPACE}/${INPUT_OUTPUT}"
           TOTAL=$(jq '.total_skills' "${REPORT}")
           PASSED=$(jq '.passed' "${REPORT}")
