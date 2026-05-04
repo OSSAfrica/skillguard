@@ -7,16 +7,16 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var version = "0.1.0"
+var Version = "0.1.0"
 
 var rootCmd = &cobra.Command{
 	Use:   "skillguard",
 	Short: "Security scanner for AI agent skills",
 	Long: `SkillGuard analyzes Markdown-based AI skill definitions for security vulnerabilities, dangerous permissions, and supply chain risks.
 
-Version: ` + version + `
+Version: ` + Version + `
 Documentation: https://github.com/OSSAfrica/skillguard`,
-	Version: version,
+	Version: Version,
 }
 
 func Execute() {
