@@ -106,7 +106,7 @@ runs:
           # Ensure destination directory exists
           mkdir -p "$(dirname "${GITHUB_WORKSPACE}/${INPUT_OUTPUT}")"
         
-          chmod 644 "${TEMP_DIR}/skillguard-report.json"
+          sudo chmod 644 "${TEMP_DIR}/skillguard-report.json"
           cp "${TEMP_DIR}/skillguard-report.json" "${GITHUB_WORKSPACE}/${INPUT_OUTPUT}"
           REPORT="${GITHUB_WORKSPACE}/${INPUT_OUTPUT}"
           # Check for nulls
