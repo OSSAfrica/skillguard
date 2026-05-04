@@ -58,41 +58,45 @@ runs:
         INPUT_QUIET: ${{ inputs.quiet }}
         INPUT_VERBOSE: ${{ inputs.verbose }}
       run: |
-        # Build the skillguard command arguments
-        ARGS="scan --path \"${INPUT_PATH}\" --threshold ${INPUT_THRESHOLD}"
-
-        if [[ -n "${INPUT_OUTPUT}" ]]; then
-          ARGS="${ARGS} --output \"${INPUT_OUTPUT}\""
-        fi
-
-        if [[ "${INPUT_QUIET}" == "true" ]]; then
-          ARGS="${ARGS} --quiet"
-        fi
-
-        if [[ "${INPUT_VERBOSE}" == "true" ]]; then
-          ARGS="${ARGS} --verbose"
-        fi
-
-        # Pull and run the SkillGuard Docker image
+        # Pull the SkillGuard Docker image
         IMAGE="ghcr.io/ossafrica/skillguard:latest"
         docker pull "${IMAGE}"
 
+        # Create a temporary directory for container output
+        TEMP_DIR=$(mktemp -d)
+        CONTAINER_OUTPUT="${TEMP_DIR}/skillguard-report.json"
+
+        # Run the container with output to temp directory
         set +e
-        docker run --rm \
-          -v "${GITHUB_WORKSPACE}:/workspace" \
-          -w /workspace \
-          "${IMAGE}" \
-          scan \
-          --path "${INPUT_PATH}" \
-          --threshold "${INPUT_THRESHOLD}" \
-          $( [[ -n "${INPUT_OUTPUT}" ]] && echo "--output ${INPUT_OUTPUT}" ) \
-          $( [[ "${INPUT_QUIET}" == "true" ]] && echo "--quiet" ) \
-          $( [[ "${INPUT_VERBOSE}" == "true" ]] && echo "--verbose" )
+        if [[ -n "${INPUT_OUTPUT}" ]]; then
+          docker run --rm \
+            -v "${GITHUB_WORKSPACE}:/workspace" \
+            -v "${TEMP_DIR}:/tmp_output" \
+            -w /workspace \
+            "${IMAGE}" \
+            scan \
+            --path "${INPUT_PATH}" \
+            --threshold "${INPUT_THRESHOLD}" \
+            --output "/tmp_output/skillguard-report.json" \
+            $( [[ "${INPUT_QUIET}" == "true" ]] && echo "--quiet" ) \
+            $( [[ "${INPUT_VERBOSE}" == "true" ]] && echo "--verbose" )
+        else
+          docker run --rm \
+            -v "${GITHUB_WORKSPACE}:/workspace" \
+            -w /workspace \
+            "${IMAGE}" \
+            scan \
+            --path "${INPUT_PATH}" \
+            --threshold "${INPUT_THRESHOLD}" \
+            $( [[ "${INPUT_QUIET}" == "true" ]] && echo "--quiet" ) \
+            $( [[ "${INPUT_VERBOSE}" == "true" ]] && echo "--verbose" )
+        fi
         EXIT_CODE=$?
         set -e
 
-        # Parse outputs from the JSON report if available
-        if [[ -n "${INPUT_OUTPUT}" && -f "${GITHUB_WORKSPACE}/${INPUT_OUTPUT}" ]]; then
+        # Copy the report from temp directory to workspace if output was specified
+        if [[ -n "${INPUT_OUTPUT}" && -f "${CONTAINER_OUTPUT}" ]]; then
+          cp "${CONTAINER_OUTPUT}" "${GITHUB_WORKSPACE}/${INPUT_OUTPUT}"
           REPORT="${GITHUB_WORKSPACE}/${INPUT_OUTPUT}"
           TOTAL=$(jq '.total_skills' "${REPORT}")
           PASSED=$(jq '.passed' "${REPORT}")
@@ -107,6 +111,9 @@ runs:
           echo "failed_count=" >> "${GITHUB_OUTPUT}"
           echo "report_path=" >> "${GITHUB_OUTPUT}"
         fi
+
+        # Clean up temp directory
+        rm -rf "${TEMP_DIR}"
 
         if [[ ${EXIT_CODE} -eq 0 ]]; then
           echo "result=passed" >> "${GITHUB_OUTPUT}"
