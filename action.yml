@@ -93,31 +93,39 @@ runs:
             $( [[ "${INPUT_VERBOSE}" == "true" ]] && echo "--verbose" )
         fi
         EXIT_CODE=$?
-        set -e
 
-        # Copy the report from temp directory to workspace if output was specified
-        if [[ -n "${INPUT_OUTPUT}" && -f "${TEMP_DIR}/skillguard-report.json" ]]; then
-          chmod 644 "${TEMP_DIR}/skillguard-report.json"
-          cp "${TEMP_DIR}/skillguard-report.json" "${GITHUB_WORKSPACE}/${INPUT_OUTPUT}"
-          REPORT="${GITHUB_WORKSPACE}/${INPUT_OUTPUT}"
-          TOTAL=$(jq '.total_skills' "${REPORT}")
-          PASSED=$(jq '.passed' "${REPORT}")
-          FAILED=$(jq '.failed' "${REPORT}")
-          echo "total_skills=${TOTAL}" >> "${GITHUB_OUTPUT}"
-          echo "passed_count=${PASSED}" >> "${GITHUB_OUTPUT}"
-          echo "failed_count=${FAILED}" >> "${GITHUB_OUTPUT}"
-          echo "report_path=${INPUT_OUTPUT}" >> "${GITHUB_OUTPUT}"
-        else
-          echo "total_skills=" >> "${GITHUB_OUTPUT}"
-          echo "passed_count=" >> "${GITHUB_OUTPUT}"
-          echo "failed_count=" >> "${GITHUB_OUTPUT}"
-          echo "report_path=" >> "${GITHUB_OUTPUT}"
-        fi
-
+        # Set output based on exit code
         if [[ ${EXIT_CODE} -eq 0 ]]; then
           echo "result=passed" >> "${GITHUB_OUTPUT}"
         else
           echo "result=failed" >> "${GITHUB_OUTPUT}"
         fi
 
+        # Copy the report from temp directory to workspace if output was specified
+        if [[ -n "${INPUT_OUTPUT}" && -f "${TEMP_DIR}/skillguard-report.json" ]]; then
+          # Ensure destination directory exists
+          mkdir -p "$(dirname "${GITHUB_WORKSPACE}/${INPUT_OUTPUT}")"
+        
+          chmod 644 "${TEMP_DIR}/skillguard-report.json"
+          cp "${TEMP_DIR}/skillguard-report.json" "${GITHUB_WORKSPACE}/${INPUT_OUTPUT}"
+          REPORT="${GITHUB_WORKSPACE}/${INPUT_OUTPUT}"
+          # Check for nulls
+          TOTAL=$(jq -r '.total_skills // 0' "${REPORT}" || echo "0")
+          PASSED=$(jq -r '.passed // 0' "${REPORT}" || echo "0")
+          FAILED=$(jq -r '.failed // 0' "${REPORT}" || echo "0")
+        
+          echo "total_skills=${TOTAL}" >> "${GITHUB_OUTPUT}"
+          echo "passed_count=${PASSED}" >> "${GITHUB_OUTPUT}"
+          echo "failed_count=${FAILED}" >> "${GITHUB_OUTPUT}"
+          echo "report_path=${INPUT_OUTPUT}" >> "${GITHUB_OUTPUT}"
+        else
+          # Set defaults
+          echo "total_skills=0" >> "${GITHUB_OUTPUT}"
+          echo "passed_count=0" >> "${GITHUB_OUTPUT}"
+          echo "failed_count=0" >> "${GITHUB_OUTPUT}"
+          echo "report_path=" >> "${GITHUB_OUTPUT}"
+        fi
+        
+        # Clean up
+        rm -rf "${TEMP_DIR}"
         exit ${EXIT_CODE}
