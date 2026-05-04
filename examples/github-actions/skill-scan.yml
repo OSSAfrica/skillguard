@@ -25,7 +25,7 @@ jobs:
 
       - name: Scan AI Skills
         id: skillguard
-        uses: ossafrica/skillguard-action@v1
+        uses: ossafrica/skillguard@v1
         with:
           path: './skills'
           threshold: 70
