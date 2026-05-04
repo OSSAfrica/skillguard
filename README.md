@@ -10,7 +10,8 @@
 [![CVEs](https://img.shields.io/badge/cves-A%2B-gold?style=flat-square&labelColor=3443F4&color=04B45F)](https://github.com/OSSAfrica/skillguard/actions)
 [![OpenSSF Scorecard](https://img.shields.io/ossf-scorecard/github.com/OSSAfrica/skillguard?label=OpenSSF)](https://securityscorecards.dev/details/github.com/OSSAfrica/skillguard)
 
-SkillGuard is a security scanner for AI agent "skills" defined in Markdown. It evaluates skill definitions for security risks, malicious intents, and supply chain vulnerabilities, providing transparency to developers and end-users.
+SkillGuard is a security scanner for AI agent "skills" defined in Markdown. It evaluates skill definitions for security
+risks, malicious intents, and supply chain vulnerabilities, providing transparency to developers and end-users.
 
 ## Why SkillGuard?
 
@@ -28,16 +29,16 @@ SkillGuard provides the first line of defense by analyzing skill definitions bef
 - **YAML frontmatter parsing** - Extracts skill metadata from Markdown files
 - **Multi-category security scoring** - Weighted scoring with exponential decay
 - **Risk detection**:
-  - Shell command execution patterns
-  - Credential and secret exposure
-  - Unrestricted tool access (wildcards)
-  - Prompt injection vectors
-  - Untrusted external URLs
-  - Obfuscated code (eval, Function, setTimeout)
-  - HTTP/Git dependencies
-  - Hidden characters (zero-width, RTL override, homoglyphs)
-  - Referenced script analysis (scans .py, .js, .ts, .sh files)
-  - Missing metadata (transparency gaps)
+    - Shell command execution patterns
+    - Credential and secret exposure
+    - Unrestricted tool access (wildcards)
+    - Prompt injection vectors
+    - Untrusted external URLs
+    - Obfuscated code (eval, Function, setTimeout)
+    - HTTP/Git dependencies
+    - Hidden characters (zero-width, RTL override, homoglyphs)
+    - Referenced script analysis (scans .py, .js, .ts, .sh files)
+    - Missing metadata (transparency gaps)
 - **CI/CD integration** - Threshold-based exit codes for automated pipelines
 - **Multiple output formats** - Colored CLI output and JSON reports
 - **Configurable** - Custom thresholds, paths, and trusted domains
@@ -46,7 +47,8 @@ SkillGuard provides the first line of defense by analyzing skill definitions bef
 
 ### Binary (Recommended)
 
-Download the latest release for your platform from the [releases page](https://github.com/OSSAfrica/skillguard/releases).
+Download the latest release for your platform from
+the [releases page](https://github.com/OSSAfrica/skillguard/releases).
 
 ### Homebrew
 
@@ -127,20 +129,20 @@ Scan multiple paths (comma-separated) and handle errors gracefully:
 
 ## Command Reference
 
-| Flag | Short | Description | Default |
-|------|-------|-------------|---------|
-| `--path` | `-p` | Path to scan (file, directory, or comma-separated paths) | `~/.agents/skills` |
-| `--threshold` | `-t` | Minimum score to pass (0-100) | `70` |
-| `--output` | `-o` | Output JSON report to file | (stdout) |
-| `--quiet` | `-q` | Minimal output - just pass/fail status | `false` |
+| Flag          | Short | Description                                              | Default            |
+|---------------|-------|----------------------------------------------------------|--------------------|
+| `--path`      | `-p`  | Path to scan (file, directory, or comma-separated paths) | `~/.agents/skills` |
+| `--threshold` | `-t`  | Minimum score to pass (0-100)                            | `70`               |
+| `--output`    | `-o`  | Output JSON report to file                               | (stdout)           |
+| `--quiet`     | `-q`  | Minimal output - just pass/fail status                   | `false`            |
 
 ### Exit Codes
 
-| Code | Meaning |
-|------|---------|
-| `0` | Scan completed, all skills passed threshold |
-| `1` | Scan completed, one or more skills failed threshold |
-| `2` | Scan failed (file not found, parse error, etc.) |
+| Code | Meaning                                             |
+|------|-----------------------------------------------------|
+| `0`  | Scan completed, all skills passed threshold         |
+| `1`  | Scan completed, one or more skills failed threshold |
+| `2`  | Scan failed (file not found, parse error, etc.)     |
 
 ## Configuration
 
@@ -160,42 +162,43 @@ skillguard config show
 
 ## Security Scoring
 
-SkillGuard uses a multi-category scoring system with weighted averages. Skills start with 100 points in each category, with deductions based on severity and exponential decay for repeated findings.
+SkillGuard uses a multi-category scoring system with weighted averages. Skills start with 100 points in each category,
+with deductions based on severity and exponential decay for repeated findings.
 
 ### Score Categories
 
-| Category | Weight | Description |
-|----------|--------|-------------|
-| Security | 3.0 | Shell access, file access, credentials, obfuscated code |
-| Supply Chain | 2.0 | External scripts, git/http dependencies, source verification |
-| Transparency | 1.5 | Metadata completeness, prompt injection risks |
-| Quality | 1.5 | Tool access patterns, allowed tools |
-| Maintenance | 1.0 | Telemetry, protestware detection |
+| Category     | Weight | Description                                                  |
+|--------------|--------|--------------------------------------------------------------|
+| Security     | 3.0    | Shell access, file access, credentials, obfuscated code      |
+| Supply Chain | 2.0    | External scripts, git/http dependencies, source verification |
+| Transparency | 1.5    | Metadata completeness, prompt injection risks                |
+| Quality      | 1.5    | Tool access patterns, allowed tools                          |
+| Maintenance  | 1.0    | Telemetry, protestware detection                             |
 
 ### Severity Levels
 
-| Level | Base Deduction | Decay Factor |
-|-------|----------------|--------------|
-| Critical | 40 | e^-10x |
-| High | 20 | e^-x |
-| Medium | 10 | e^-x/20 |
-| Low | 5 | e^-x/40 |
+| Level    | Base Deduction | Decay Factor |
+|----------|----------------|--------------|
+| Critical | 40             | e^-10x       |
+| High     | 20             | e^-x         |
+| Medium   | 10             | e^-x/20      |
+| Low      | 5              | e^-x/40      |
 
 ### Detection Categories
 
-| Category | Risk | Severity |
-|----------|------|----------|
-| Shell Execution | Command execution patterns | High/Critical |
-| File Access | File write/delete operations | High |
-| Network | Untrusted external URLs | Medium |
-| Credentials | Secret/credential references | High |
-| Obfuscated Code | eval, Function, setTimeout patterns | Critical |
-| HTTP Dependencies | curl/wget with pipe to shell | Critical |
-| Git Dependencies | Git clone/fetch operations | Medium |
-| Hidden Characters | Zero-width, RTL, homoglyphs | High |
-| Prompt Injection | Dynamic prompt construction | Medium |
-| Supply Chain | No source URL provided | Low |
-| Metadata | Missing description/triggers | Low |
+| Category          | Risk                                | Severity      |
+|-------------------|-------------------------------------|---------------|
+| Shell Execution   | Command execution patterns          | High/Critical |
+| File Access       | File write/delete operations        | High          |
+| Network           | Untrusted external URLs             | Medium        |
+| Credentials       | Secret/credential references        | High          |
+| Obfuscated Code   | eval, Function, setTimeout patterns | Critical      |
+| HTTP Dependencies | curl/wget with pipe to shell        | Critical      |
+| Git Dependencies  | Git clone/fetch operations          | Medium        |
+| Hidden Characters | Zero-width, RTL, homoglyphs         | High          |
+| Prompt Injection  | Dynamic prompt construction         | Medium        |
+| Supply Chain      | No source URL provided              | Low           |
+| Metadata          | Missing description/triggers        | Low           |
 
 A score of 70 or higher is considered passing by default.
 
@@ -234,11 +237,27 @@ docker run --rm -v ~/path/to/skills:/skills ghcr.io/ossafrica/skillguard scan --
 
 Copy the appropriate example to your skill repository:
 
-| Platform | Example Location |
-|----------|------------------|
+| Platform       | Example Location                         |
+|----------------|------------------------------------------|
 | GitHub Actions | `examples/github-actions/skill-scan.yml` |
-| GitLab CI | `examples/gitlab-ci/.gitlab-ci.yml` |
-| Docker Compose | `examples/docker/docker-compose.yml` |
+| GitLab CI      | `examples/gitlab-ci/.gitlab-ci.yml`      |
+| Docker Compose | `examples/docker/docker-compose.yml`     |
+
+## Roadmap
+
+See [ROADMAP.md](ROADMAP.md) for the full project roadmap and future plans.
+
+**Current focus:** Phase 1 — Registry intelligence, CLI discovery commands, and database layer for scan history.
+
+### Progress Overview
+
+| Phase                                                | Status         |
+|------------------------------------------------------|----------------|
+| Phase 1: Scan Infrastructure & Registry Intelligence | 🔄 In progress |
+| Phase 2: SkillGuard.net — Public Security Dashboard  | ⬜ Not started  |
+| Phase 3: Ecosystem Integration & Trust               | ⬜ Not started  |
+| Phase 4: Advanced Threat Detection                   | ⬜ Not started  |
+| Phase 5: Enterprise & Governance                     | ⬜ Not started  |
 
 ## Project Structure
 
@@ -257,12 +276,14 @@ skillguard/
 │   ├── gitlab-ci/
 │   └── docker/
 ├── Dockerfile         # Container image definition
+├── ROADMAP.md         # Project roadmap and future plans
 └── main.go           # Application entry
 ```
 
 ## Contributing
 
-Contributions are welcome. Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on how to contribute to this project.
+Contributions are welcome. Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on how to contribute to this
+project.
 
 ## Development
 
