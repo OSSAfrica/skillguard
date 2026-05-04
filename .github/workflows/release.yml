@@ -132,6 +132,8 @@ jobs:
           push: true
           tags: ghcr.io/${{ env.REPO }}:latest
           platforms: linux/amd64,linux/arm64
+          build-args: |
+            VERSION=${{ needs.versioning.outputs.version }}
 
   sign:
     needs: [ versioning, docker ]
