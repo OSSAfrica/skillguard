@@ -7,7 +7,7 @@ Set Width 1200
 Set Padding 20
 Set TypingSpeed 120ms
 
-Type "skillguard scan --path ~/.agents/skills/ai-sdk"
+Type "skillguard scan ~/.agents/skills/ai-sdk"
 Enter
 
 Sleep 4s
