@@ -53,7 +53,34 @@ the [releases page](https://github.com/OSSAfrica/skillguard/releases).
 ### Homebrew
 
 ```bash
-brew install skillguard/skillguard/skillguard
+brew tap ossafrica/skillguard
+
+brew install skillguard
+```
+
+Or you can also do:
+
+```bash
+brew install ossafrica/skillguard/skillguard
+````
+
+on MacOS, after installing the command run this to allow the command to run
+without restrictions:
+
+```bash
+sudo xattr -d com.apple.quarantine $(which skillguard)
+```
+
+or
+
+```bash
+sudo xattr -d com.apple.quarantine /opt/homebrew/bin/skillguard
+```
+
+or 
+
+```bash
+sudo xattr -d com.apple.quarantine /usr/local/bin/skillguard
 ```
 
 ### Docker
