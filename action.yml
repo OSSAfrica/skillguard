@@ -1,4 +1,4 @@
-name: 'SkillGuard'
+name: 'OSSAfrica-SkillGuard'
 description: 'Security scanner for AI agent skill definitions — detects vulnerabilities, dangerous permissions, and supply chain risks'
 author: 'OSSAfrica'
 
