@@ -89,7 +89,7 @@ jobs:
           go-version: '1.25'
           cache: true
 
-      - uses: goreleaser/goreleaser-action@1a80836c5c9d9e5755a25cb59ec6f45a3b5f41a8
+      - uses: goreleaser/goreleaser-action@5daf1e915a5f0af01ddbcd89a43b8061ff4f1a89
         with:
           version: latest
           args: release --clean --timeout 30m
@@ -126,7 +126,7 @@ jobs:
         with:
           images: ghcr.io/${{ env.REPO }}
 
-      - uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f
+      - uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf
         with:
           context: .
           push: true
