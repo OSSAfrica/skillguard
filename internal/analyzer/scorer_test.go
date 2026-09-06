@@ -978,43 +978,33 @@ func TestScorer_MapFindingToScoreCategory(t *testing.T) {
 func TestScorer_DeductionDecay(t *testing.T) {
 	s := NewScorer(70)
 
-	tests := []struct {
-		name     string
-		severity model.Severity
-		count    int
-		wantLess float64
-	}{
-		{
-			name:     "first high finding",
-			severity: model.SeverityHigh,
-			count:    1,
-			wantLess: 20,
-		},
-		{
-			name:     "second high finding - decayed",
-			severity: model.SeverityHigh,
-			count:    2,
-			wantLess: 7.35,
-		},
-		{
-			name:     "first critical finding",
-			severity: model.SeverityCritical,
-			count:    1,
-			wantLess: 40,
-		},
-		{
-			name:     "second critical finding - heavily decayed",
-			severity: model.SeverityCritical,
-			count:    2,
-			wantLess: 0.0018,
-		},
+	severities := []model.Severity{
+		model.SeverityCritical,
+		model.SeverityHigh,
+		model.SeverityMedium,
+		model.SeverityLow,
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := s.calculateDeductionWithDecay(tt.severity, tt.count)
-			if got > tt.wantLess*1.5 || got < tt.wantLess*0.5 {
-				t.Errorf("decay deduction = %f, expected around %f", got, tt.wantLess)
+	for _, sev := range severities {
+		t.Run(string(sev), func(t *testing.T) {
+			first := s.calculateDeductionWithDecay(sev, 1)
+			if first != s.getBaseDeduction(sev) {
+				t.Errorf("first occurrence = %f, want the full base deduction %f", first, s.getBaseDeduction(sev))
+			}
+
+			prev := first
+			for occurrence := 2; occurrence <= 5; occurrence++ {
+				got := s.calculateDeductionWithDecay(sev, occurrence)
+
+				if got >= prev {
+					t.Errorf("occurrence %d deducted %f, want less than the previous %f", occurrence, got, prev)
+				}
+				// Repeats must still cost something, or extra findings would be free.
+				if got < 1 {
+					t.Errorf("occurrence %d deducted %f, want at least 1 point", occurrence, got)
+				}
+
+				prev = got
 			}
 		})
 	}

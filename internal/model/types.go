@@ -76,6 +76,7 @@ type AnalysisResult struct {
 	OverallScore   int             `json:"overall_score"`
 	Passed         bool            `json:"passed"`
 	IsReference    bool            `json:"is_reference"`
+	CriticalCount  int             `json:"critical_count"`
 	Findings       []Finding       `json:"findings"`
 	Metadata       SkillMetadata   `json:"metadata"`
 	CategoryScores []CategoryScore `json:"category_scores"`
