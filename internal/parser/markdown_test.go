@@ -8,7 +8,7 @@ import (
 
 func TestParseAllowedTools(t *testing.T) {
 	tests := []struct {
-		name string
+		name  string
 		input interface{}
 		want  []string
 	}{
@@ -67,11 +67,11 @@ func TestParseAllowedTools(t *testing.T) {
 
 func TestExtractFrontmatter(t *testing.T) {
 	tests := []struct {
-		name        string
-		content     string
-		wantErr     bool
-		wantName    string
-		wantBody    string
+		name     string
+		content  string
+		wantErr  bool
+		wantName string
+		wantBody string
 	}{
 		{
 			name: "valid frontmatter",
@@ -162,10 +162,10 @@ func TestParseSkillFile(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	tests := []struct {
-		name        string
-		content     string
-		wantName    string
-		wantErr     bool
+		name     string
+		content  string
+		wantName string
+		wantErr  bool
 	}{
 		{
 			name: "valid skill file",
@@ -190,7 +190,7 @@ Body`,
 			wantErr:  false,
 		},
 		{
-			name: "nonexistent file",
+			name:    "nonexistent file",
 			content: "",
 			wantErr: true,
 		},
@@ -264,9 +264,9 @@ name: test
 			wantErr: true,
 		},
 		{
-			name:     "nonexistent file",
-			content:  "",
-			wantErr:  true,
+			name:    "nonexistent file",
+			content: "",
+			wantErr: true,
 		},
 	}
 

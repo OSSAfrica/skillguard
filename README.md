@@ -113,6 +113,10 @@ skillguard scan
 
 ```bash
 skillguard scan --path ./my-skills
+
+# several paths at once
+skillguard scan --path ./my-skills,./vendor-skills
+skillguard scan ./my-skills ./vendor-skills
 ```
 
 ### CI/CD integration (fail if score < 70)
@@ -159,9 +163,10 @@ Scan multiple paths (comma-separated) and handle errors gracefully:
 | Flag          | Short | Description                                              | Default            |
 |---------------|-------|----------------------------------------------------------|--------------------|
 | `--path`      | `-p`  | Path to scan (file, directory, or comma-separated paths) | `~/.agents/skills` |
-| `--threshold` | `-t`  | Minimum score to pass (0-100)                            | `70`               |
-| `--output`    | `-o`  | Output JSON report to file                               | (stdout)           |
+| `--threshold` | `-t`  | Minimum score to pass (0-100)                            | `70` (or config)   |
+| `--output`    | `-o`  | Output JSON report to file                               | (none)             |
 | `--quiet`     | `-q`  | Minimal output - just pass/fail status                   | `false`            |
+| `--verbose`   | `-v`  | Show all findings and detailed breakdown                 | `false`            |
 
 ### Exit Codes
 
@@ -216,14 +221,16 @@ progressively less, but each one still costs something: adding findings can neve
 
 | Category          | Risk                                | Severity      |
 |-------------------|-------------------------------------|---------------|
-| Shell Execution   | Command execution patterns          | High/Critical |
+| Shell Execution   | Command invocations, not prose      | High/Critical |
 | File Access       | File write/delete operations        | High          |
 | Network           | Untrusted external URLs             | Medium        |
 | Credentials       | Secret/credential references        | High          |
 | Obfuscated Code   | eval, Function, setTimeout patterns | Critical      |
 | HTTP Dependencies | curl/wget with pipe to shell        | Critical      |
 | Git Dependencies  | Git clone/fetch operations          | Medium        |
-| Hidden Characters | Zero-width, RTL, homoglyphs         | High          |
+| Hidden Characters | Zero-width and control characters   | High          |
+| Bidi Override     | Text that renders unlike it reads   | High          |
+| Mixed Script      | Cyrillic/Greek lookalikes in Latin  | Medium        |
 | Prompt Injection  | Dynamic prompt construction         | Medium        |
 | Supply Chain      | No source URL provided              | Low           |
 | Metadata          | Missing description/triggers        | Low           |
