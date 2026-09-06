@@ -48,6 +48,15 @@ func init() {
 func runScan(cmd *cobra.Command, args []string) error {
 	cfg := loadConfig()
 
+	// An explicit flag wins; otherwise the configured threshold applies.
+	if !cmd.Flags().Changed("threshold") {
+		threshold = cfg.Threshold
+	}
+
+	if err := validateThreshold(threshold); err != nil {
+		return err
+	}
+
 	var paths []string
 	if len(args) > 0 {
 		paths = args
@@ -60,10 +69,17 @@ func runScan(cmd *cobra.Command, args []string) error {
 	var allFiles []parser.FoundFile
 	for _, p := range paths {
 		expandedPath := expandPath(p)
-		files, err := parser.FindSkillFiles(expandedPath)
+		files, warnings, err := parser.FindSkillFiles(expandedPath)
 		if err != nil {
 			return fmt.Errorf("failed to find skill files in %s: %w", p, err)
 		}
+
+		if !quietMode {
+			for _, w := range warnings {
+				color.Yellow("Warning: %s", w)
+			}
+		}
+
 		allFiles = append(allFiles, files...)
 	}
 
@@ -134,11 +150,11 @@ func runScan(cmd *cobra.Command, args []string) error {
 
 func expandPath(path string) string {
 	if len(path) > 1 && path[0] == '~' {
-		home := os.Getenv("HOME")
-		if home != "" {
+		if home := homeDir(); home != "" {
 			return home + path[1:]
 		}
 	}
+
 	return path
 }
 
@@ -185,6 +201,13 @@ func printSkillResult(r *model.AnalysisResult, verbose bool) {
 	}
 	fmt.Println()
 	fmt.Printf("  File: %s\n", r.FilePath)
+
+	if r.CriticalCount > 0 {
+		_, err := color.New(color.FgHiRed).Printf("  Critical findings: %d (automatic fail)\n", r.CriticalCount)
+		if err != nil {
+			return
+		}
+	}
 
 	hasDetailedBreakdown := false
 	for _, cs := range r.CategoryScores {

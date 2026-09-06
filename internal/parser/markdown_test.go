@@ -334,7 +334,7 @@ This is a reference file.`
 	}
 
 	t.Run("find skill files in directory", func(t *testing.T) {
-		files, err := FindSkillFiles(tmpDir)
+		files, _, err := FindSkillFiles(tmpDir)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -363,7 +363,7 @@ This is a reference file.`
 	})
 
 	t.Run("find single skill file", func(t *testing.T) {
-		files, err := FindSkillFiles(skillFile)
+		files, _, err := FindSkillFiles(skillFile)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -378,14 +378,14 @@ This is a reference file.`
 	})
 
 	t.Run("nonexistent path", func(t *testing.T) {
-		_, err := FindSkillFiles(filepath.Join(tmpDir, "nonexistent"))
+		_, _, err := FindSkillFiles(filepath.Join(tmpDir, "nonexistent"))
 		if err == nil {
 			t.Error("expected error for nonexistent path")
 		}
 	})
 
 	t.Run("nested directory with uppercase SKILL.MD", func(t *testing.T) {
-		files, err := FindSkillFiles(nestedSkillDir)
+		files, _, err := FindSkillFiles(nestedSkillDir)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}

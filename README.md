@@ -190,7 +190,8 @@ skillguard config show
 ## Security Scoring
 
 SkillGuard uses a multi-category scoring system with weighted averages. Skills start with 100 points in each category,
-with deductions based on severity and exponential decay for repeated findings.
+with deductions based on severity and exponential decay for repeated findings. Repeated findings of the same kind cost
+progressively less, but each one still costs something: adding findings can never raise a score.
 
 ### Score Categories
 
@@ -204,12 +205,12 @@ with deductions based on severity and exponential decay for repeated findings.
 
 ### Severity Levels
 
-| Level    | Base Deduction | Decay Factor |
-|----------|----------------|--------------|
-| Critical | 40             | e^-10x       |
-| High     | 20             | e^-x         |
-| Medium   | 10             | e^-x/20      |
-| Low      | 5              | e^-x/40      |
+| Level    | Base Deduction | Decay Factor | 1st / 2nd / 3rd occurrence |
+|----------|----------------|--------------|----------------------------|
+| Critical | 40             | e^-0.5x      | 40 / 24.3 / 14.7           |
+| High     | 20             | e^-0.4x      | 20 / 13.4 / 9.0            |
+| Medium   | 10             | e^-0.3x      | 10 / 7.4 / 5.5             |
+| Low      | 5              | e^-0.2x      | 5 / 4.1 / 3.3              |
 
 ### Detection Categories
 
@@ -228,6 +229,23 @@ with deductions based on severity and exponential decay for repeated findings.
 | Metadata          | Missing description/triggers        | Low           |
 
 A score of 70 or higher is considered passing by default.
+
+**Critical findings are disqualifying.** A skill with any critical finding fails regardless of its numeric score — a
+weighted average across five categories can otherwise dilute a single critical risk (such as `curl … | sh`) into a pass.
+
+### What Gets Scanned
+
+Directory scans follow symlinked skill directories, which is how most skill trees are laid out
+(`~/.claude/skills/<name>` pointing at the real directory elsewhere). Anything that cannot be read is reported as a
+warning and the rest of the scan continues; a file named directly on the command line is always scanned, with or
+without frontmatter.
+
+### Referenced Scripts
+
+When a skill body references a local script (`[setup](scripts/setup.py)`, `source scripts/env.sh`, `require('./lib.js')`),
+that script is scanned too. References are resolved strictly inside the skill's own directory: absolute paths, URLs and
+paths escaping the directory (`../../.aws/credentials`) are ignored, so a crafted skill cannot use the scanner to read
+arbitrary files.
 
 ### Example Output
 
@@ -251,6 +269,10 @@ SkillGuard includes built-in trust for known safe domains:
 - Documentation: `github.io`, `readthedocs.io`, `netlify.app`
 
 External URLs to domains not in this list are flagged as medium-risk.
+
+Trust is decided from the URL's parsed host, matching either the domain itself or a subdomain of it. A trusted name
+appearing anywhere else in the URL does not confer trust: `https://github.com.evil.net/x` and
+`https://evil.com/?ref=github.com` are both untrusted.
 
 ## Docker Usage
 
