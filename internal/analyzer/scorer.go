@@ -89,6 +89,51 @@ var (
 		regexp.MustCompile(`(?i)template\s*\(.*\$\{`),
 	}
 
+	// Instructions aimed at the agent reading the skill. The distinguishing
+	// feature of an attack is the imperative: "Ignore all previous
+	// instructions" is a command, while "skills that can be manipulated to
+	// ignore safety guidelines" describes one. Sentence-initial and
+	// second-person forms are therefore required, so documentation that
+	// discusses prompt injection is not mistaken for prompt injection.
+	//
+	// sentenceStart matches the beginning of a line or of a sentence, allowing
+	// list markers, emphasis and quotation marks.
+	sentenceStart = `(?:^|[.!?]\s+)[\s>*_"'` + "`" + `-]*(?:please\s+)?`
+
+	injectedInstructionPatterns = []*regexp.Regexp{
+		// Sentence-initial override: "Ignore all previous instructions".
+		regexp.MustCompile(`(?im)` + sentenceStart +
+			`(?:ignore|disregard|forget|override|bypass|circumvent)\s+` +
+			`(?:all\s+|any\s+|the\s+|your\s+)*` +
+			`(?:previous|prior|earlier|above|preceding|foregoing|system|safety|prior\s+)*\s*` +
+			`(?:instructions?|prompts?|rules?|guidelines?|guardrails?|restrictions?|constraints?|policies|directives?)\b`),
+		// Second person override: "you must ignore any prior restrictions".
+		regexp.MustCompile(`(?i)\byou\s+(?:must|should|shall|will|need\s+to|have\s+to|are\s+to)\s+(?:now\s+)?` +
+			`(?:ignore|disregard|forget|override|bypass|circumvent)\b[^.\n]{0,40}` +
+			`(?:instructions?|prompts?|rules?|guidelines?|guardrails?|restrictions?|constraints?|policies)\b`),
+		// Secrecy: keeping the operator out of the loop.
+		regexp.MustCompile(`(?im)` + sentenceStart +
+			`(?:do\s+not|don't|never)\s+(?:tell|inform|notify|alert|mention\s+to|reveal\s+to|disclose\s+to|show)\s+` +
+			`(?:the\s+|any\s+)?(?:user|human|operator|owner|reviewer)\b`),
+		regexp.MustCompile(`(?i)\bwithout\s+(?:telling|informing|notifying|alerting|asking)\s+(?:the\s+)?(?:user|human|operator|owner)\b`),
+		regexp.MustCompile(`(?im)` + sentenceStart + `(?:do\s+not|don't|never)\s+mention\s+(?:this|that|it|these)\b`),
+		// Coercion: obey regardless of the operator.
+		regexp.MustCompile(`(?i)\byou\s+must\s+(?:always\s+)?(?:comply|obey|follow\s+these)\b`),
+		regexp.MustCompile(`(?i)\beven\s+if\s+(?:the\s+)?(?:user|human|operator)(?:'s)?\b[^.\n]{0,60}\b(?:otherwise|not\s+to|refuses?|objects?)\b`),
+		regexp.MustCompile(`(?i)\bregardless\s+of\s+(?:what\s+)?(?:the\s+)?(?:user|human|operator)\b[^.\n]{0,30}\b(?:says?|wants?|asks?)\b`),
+		// Role reassignment and jailbreak modes.
+		regexp.MustCompile(`(?i)\byou\s+are\s+now\s+(?:a|an|in)\s+[^.\n]{0,40}\b(?:assistant|mode|agent|model|persona)\b`),
+		regexp.MustCompile(`(?i)\b(?:enter|enable|activate|switch\s+to)\s+(?:developer|god|jailbreak|unrestricted|unfiltered|debug)\s+mode\b`),
+	}
+
+	// Instructions concealed where a human reviewer will not read them. The
+	// comment is matched first and its contents tested separately, so a match
+	// cannot span from one comment to the next.
+	htmlCommentPattern = regexp.MustCompile(`(?is)<!--.*?-->`)
+
+	hiddenInstructionKeywords = regexp.MustCompile(`(?is)\b(?:system\s*:|assistant\s*:|you\s+are\s+now|developer\s+mode|` +
+		`ignore\s+(?:all\s+|the\s+|any\s+)?(?:previous|prior)|do\s+not\s+tell|never\s+mention|exfiltrat)\b`)
+
 	obfuscatedPatterns = []*regexp.Regexp{
 		regexp.MustCompile(`(?i)eval\s*\(`),
 		regexp.MustCompile(`(?i)Function\s*\(`),
@@ -201,6 +246,7 @@ func (s *Scorer) Analyze(path string, metadata *model.SkillMetadata, body string
 	result.Findings = append(result.Findings, s.checkNetworkAccess(body)...)
 	result.Findings = append(result.Findings, s.checkCredentials(body)...)
 	result.Findings = append(result.Findings, s.checkPromptInjection(body)...)
+	result.Findings = append(result.Findings, s.checkInjectedInstructions(body)...)
 	result.Findings = append(result.Findings, s.checkSupplyChain(metadata)...)
 	result.Findings = append(result.Findings, s.checkMetadata(metadata)...)
 	result.Findings = append(result.Findings, s.checkObfuscatedCode(body)...)
@@ -240,6 +286,7 @@ func (s *Scorer) AnalyzeReference(path string, body string) *model.AnalysisResul
 	result.Findings = append(result.Findings, s.checkObfuscatedCode(body)...)
 	result.Findings = append(result.Findings, s.checkHttpDependencies(body)...)
 	result.Findings = append(result.Findings, s.checkHiddenCharacters(body)...)
+	result.Findings = append(result.Findings, s.checkInjectedInstructions(body)...)
 
 	s.finalize(result)
 
@@ -611,6 +658,45 @@ func (s *Scorer) checkPromptInjection(body string) []model.Finding {
 				Pattern:     pattern.String(),
 				ScoreCat:    model.CatTransparency,
 			})
+			break
+		}
+	}
+
+	return findings
+}
+
+// checkInjectedInstructions looks for instructions inside the skill body that
+// are aimed at the agent reading it: overriding its instructions, hiding its
+// actions from the operator, coercing compliance, or reassigning its role.
+// This is the attack the tool exists to catch, and the dynamic-prompt patterns
+// in checkPromptInjection never saw it.
+func (s *Scorer) checkInjectedInstructions(body string) []model.Finding {
+	var findings []model.Finding
+
+	for _, pattern := range injectedInstructionPatterns {
+		if pattern.MatchString(body) {
+			findings = append(findings, model.Finding{
+				Category:    model.CategoryPromptInjection,
+				Severity:    model.SeverityCritical,
+				Description: "Injected instructions directed at the agent (instruction override, secrecy or coercion)",
+				Pattern:     pattern.String(),
+				ScoreCat:    model.CatSecurity,
+			})
+
+			break
+		}
+	}
+
+	for _, comment := range htmlCommentPattern.FindAllString(body, -1) {
+		if hiddenInstructionKeywords.MatchString(comment) {
+			findings = append(findings, model.Finding{
+				Category:    model.CategoryPromptInjection,
+				Severity:    model.SeverityCritical,
+				Description: "Instructions hidden in an HTML comment, where a human reviewer will not read them",
+				Pattern:     "hidden HTML comment",
+				ScoreCat:    model.CatSecurity,
+			})
+
 			break
 		}
 	}

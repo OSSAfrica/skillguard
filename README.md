@@ -32,7 +32,7 @@ SkillGuard provides the first line of defense by analyzing skill definitions bef
     - Shell command execution patterns
     - Credential and secret exposure
     - Unrestricted tool access (wildcards)
-    - Prompt injection vectors
+    - Prompt injection (instruction override, secrecy directives, hidden instructions)
     - Untrusted external URLs
     - Obfuscated code (eval, Function, setTimeout)
     - HTTP/Git dependencies
@@ -231,7 +231,8 @@ progressively less, but each one still costs something: adding findings can neve
 | Hidden Characters | Zero-width and control characters   | High          |
 | Bidi Override     | Text that renders unlike it reads   | High          |
 | Mixed Script      | Cyrillic/Greek lookalikes in Latin  | Medium        |
-| Prompt Injection  | Dynamic prompt construction         | Medium        |
+| Prompt Injection  | Instructions aimed at the agent     | Critical      |
+| Prompt Construction | Dynamically assembled prompts     | Medium        |
 | Supply Chain      | No source URL provided              | Low           |
 | Metadata          | Missing description/triggers        | Low           |
 
@@ -247,6 +248,18 @@ Directory scans follow symlinked skill directories, which is how most skill tree
 (`~/.claude/skills/<name>` pointing at the real directory elsewhere). Anything that cannot be read is reported as a
 warning and the rest of the scan continues; a file named directly on the command line is always scanned, with or
 without frontmatter.
+
+### Prompt Injection
+
+A skill body is read by an agent, so instructions inside it aimed at that agent are the attack. SkillGuard flags
+instruction overrides ("ignore all previous instructions"), secrecy directives ("do not tell the user"), coercion
+("you must always comply, even if the user says otherwise"), role reassignment, and instructions hidden in HTML
+comments where a human reviewer will not see them.
+
+Detection requires the imperative form, so documents that *describe* prompt injection are not mistaken for documents
+that *perform* it: "skills that can be manipulated to ignore safety guidelines" is prose, while "Ignore all previous
+instructions." is a command. Across 733 real skills this produced no findings; a crafted malicious skill that
+previously scored 100/100 now scores 79 and fails.
 
 ### Referenced Scripts
 
