@@ -238,7 +238,8 @@ progressively less, but each one still costs something: adding findings can neve
 A score of 70 or higher is considered passing by default.
 
 **Critical findings are disqualifying.** A skill with any critical finding fails regardless of its numeric score — a
-weighted average across five categories can otherwise dilute a single critical risk (such as `curl … | sh`) into a pass.
+weighted average across five categories can otherwise dilute a single critical risk, such as a piped shell installer,
+into a pass.
 
 ### What Gets Scanned
 

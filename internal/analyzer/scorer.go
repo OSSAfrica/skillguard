@@ -114,9 +114,12 @@ var (
 		regexp.MustCompile(`(?i)curl\s+.*\|\s*sh`),
 		regexp.MustCompile(`(?i)wget\s+.*\|\s*sh`),
 		regexp.MustCompile(`(?i)curl\s+.*\|\s*bash`),
-		regexp.MustCompile(`(?i)https?://\S+/install`),
-		regexp.MustCompile(`(?i)https?://\S+\.sh`),
-		regexp.MustCompile(`(?i)https?://\S+\.py.*exec`),
+		// The extension must end the URL: without a boundary, "img.shields.io"
+		// matched ".sh" and "/installation-guide" matched "/install", making
+		// every badge-laden README a critical finding.
+		regexp.MustCompile(`(?i)https?://\S+/install(?:\.[a-z0-9]+)?(?:[^a-z0-9]|$)`),
+		regexp.MustCompile(`(?i)https?://\S+\.sh(?:[^a-z0-9]|$)`),
+		regexp.MustCompile(`(?i)https?://\S+\.py(?:[^a-z0-9]|$).*exec`),
 		regexp.MustCompile(`(?i)os\.system\s*\(\s*['"]http`),
 		regexp.MustCompile(`(?i)requests\.get\s*\(\s*['"]http`),
 		regexp.MustCompile(`(?i)subprocess.*http`),
