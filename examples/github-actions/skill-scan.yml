@@ -30,6 +30,9 @@ jobs:
           path: './skills'
           threshold: 70
           output: 'skillguard-report.json'
+          # Pin the scanner image for reproducible results. Accepts a released
+          # tag (v1.2.3) or a digest (sha256:...). Defaults to 'latest'.
+          # version: 'v1.2.3'
 
       - name: Upload report
         uses: actions/upload-artifact@v4

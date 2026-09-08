@@ -36,10 +36,9 @@ vendor/
 .DS_Store
 Thumbs.db
 
-# Output files
-*.json
-!.github/**/*.json
+# Output files (reports only - a blanket *.json also hid test fixtures)
 skillguard-report.json
+*-report.json
 
 # GoReleaser output
 dist/

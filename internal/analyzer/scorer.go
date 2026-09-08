@@ -2,7 +2,9 @@ package analyzer
 
 import (
 	"fmt"
+	"io"
 	"math"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -26,7 +28,7 @@ var (
 		"example.com",
 	}
 
-	trustedTLDs = []string{
+	trustedHostSuffixes = []string{
 		".vercel.app",
 		".vercel.sh",
 		".cloudflare.com",
@@ -41,13 +43,23 @@ var (
 		".digitalocean.com",
 	}
 
+	// shellBinaries are command names that mean "this is a shell command line"
+	// when they appear with arguments inside a code span.
+	shellBinaries = `ls|cat|cd|cp|mv|rm|rmdir|mkdir|touch|chmod|chown|ln|find|grep|sed|awk|` +
+		`curl|wget|ssh|scp|rsync|nc|dd|tar|zip|unzip|kill|pkill|ps|export|source|eval|` +
+		`bash|sh|zsh|fish|python3?|pip3?|node|npm|npx|yarn|pnpm|go|cargo|make|` +
+		`docker|kubectl|git|brew|apt|apt-get|yum|dnf|systemctl|launchctl|osascript`
+
 	shellPatterns = []*regexp.Regexp{
 		regexp.MustCompile(`(?i)Bash\([^)]*\*:[^)]*\)`),
-		regexp.MustCompile(`(?i)\b(exec|execute|run|spawn)\b`),
-		regexp.MustCompile(`(?i)run\s+(?:command|shell|cmd)`),
+		// A call, not the English words "exec"/"run"/"spawn" in a sentence.
+		regexp.MustCompile(`(?i)\b(?:exec|execFile|execSync|spawn|spawnSync|popen|system)\s*\(`),
+		regexp.MustCompile(`(?i)\b(?:run|execute)\s+(?:the\s+|this\s+|a\s+|these\s+|following\s+)*(?:command|shell|cmd|script|binary)\b`),
 		regexp.MustCompile(`(?i)\$\(`),
-		regexp.MustCompile("(?i)`[^`]+`"),
-		regexp.MustCompile(`(?i)subprocess|exec\.Command`),
+		regexp.MustCompile(`(?i)subprocess|exec\.Command|child_process|os\.system|Popen`),
+		// A code span holding a command with arguments: `rm -rf /tmp` counts,
+		// while `SKILL.md` or `git` on its own is just prose formatting.
+		regexp.MustCompile("(?i)`\\s*(?:sudo\\s+)?(?:" + shellBinaries + ")\\b\\s+[^`]+`"),
 	}
 
 	filePatterns = []*regexp.Regexp{
@@ -67,7 +79,7 @@ var (
 		regexp.MustCompile(`(?i)process\.env\.[A-Z_]+`),
 	}
 
-	urlPattern = regexp.MustCompile(`https?://[^\s)"'>]+\.?(?:\s|$)`)
+	urlPattern = regexp.MustCompile("https?://[^\\s)\"'<>\\]`]+")
 
 	injectionPatterns = []*regexp.Regexp{
 		regexp.MustCompile(`(?i)(concat|join|interpolate|format)\s*\([^)]*user`),
@@ -102,9 +114,12 @@ var (
 		regexp.MustCompile(`(?i)curl\s+.*\|\s*sh`),
 		regexp.MustCompile(`(?i)wget\s+.*\|\s*sh`),
 		regexp.MustCompile(`(?i)curl\s+.*\|\s*bash`),
-		regexp.MustCompile(`(?i)https?://\S+/install`),
-		regexp.MustCompile(`(?i)https?://\S+\.sh`),
-		regexp.MustCompile(`(?i)https?://\S+\.py.*exec`),
+		// The extension must end the URL: without a boundary, "img.shields.io"
+		// matched ".sh" and "/installation-guide" matched "/install", making
+		// every badge-laden README a critical finding.
+		regexp.MustCompile(`(?i)https?://\S+/install(?:\.[a-z0-9]+)?(?:[^a-z0-9]|$)`),
+		regexp.MustCompile(`(?i)https?://\S+\.sh(?:[^a-z0-9]|$)`),
+		regexp.MustCompile(`(?i)https?://\S+\.py(?:[^a-z0-9]|$).*exec`),
 		regexp.MustCompile(`(?i)os\.system\s*\(\s*['"]http`),
 		regexp.MustCompile(`(?i)requests\.get\s*\(\s*['"]http`),
 		regexp.MustCompile(`(?i)subprocess.*http`),
@@ -119,24 +134,44 @@ var (
 
 	hiddenCharPatterns = []*regexp.Regexp{
 		regexp.MustCompile(`[\x00-\x08\x0B\x0C\x0E-\x1F]`),
-		regexp.MustCompile("[\u200B-\u200F\u2028-\u202F]"),
+		regexp.MustCompile("[\u200B-\u200F]"),
+		regexp.MustCompile("[\u2028-\u2029]"),
 		regexp.MustCompile("\uFEFF"),
-		regexp.MustCompile("[\u202A-\u202E]"),
 		regexp.MustCompile("[\u2060-\u2064]"),
 	}
 
-	homoglyphPatterns = []*regexp.Regexp{
-		regexp.MustCompile(`[а-яА-ЯёЁ]|[À-ÿ]|[Α-Ωα-ω]`),
-	}
+	// bidiPattern matches the bidirectional embedding, override and isolate
+	// controls used to disguise text. Written as escapes in a raw string these
+	// matched the runes U+00E2 U+0080 U+008E, which cannot occur in UTF-8, so
+	// the check never fired.
+	bidiPattern = regexp.MustCompile("[\u202A-\u202E\u2066-\u2069]")
 
+	// Homoglyph attacks hide a few Cyrillic or Greek lookalikes inside Latin
+	// text. Matching accented Latin flagged ordinary French and German prose.
+	confusableScriptPattern = regexp.MustCompile(`[\p{Cyrillic}\p{Greek}]`)
+	latinLetterPattern      = regexp.MustCompile(`\p{Latin}`)
+
+	// scriptExts is the set of referenced file types SkillGuard follows and scans.
+	scriptExts = `(?:py|js|ts|sh|rb|go|rs)`
+
+	// Every pattern must expose the referenced path as the named group "path";
+	// extractReferencedFiles reads that group by name, never by position.
 	referencePatterns = []*regexp.Regexp{
-		regexp.MustCompile(`(?i)\[([^]]+)]\(([^)]+\.(py|js|ts|sh|rb|go|rs))\)`),
-		regexp.MustCompile(`(?i)scripts?/[^/\s]+\.(py|js|ts|sh|rb|go|rs)`),
-		regexp.MustCompile(`(?i)import\s+(?:from\s+)?['"](\.\./)?[^'"]+\.(py|js|ts)`),
-		regexp.MustCompile(`(?i)require\s*\(\s*['"](\.\./)?[^'"]+\.(js|ts)`),
-		regexp.MustCompile(`(?i)<script\s+src=`),
-		regexp.MustCompile(`(?i)source\s+(\S+\.(sh|bash))`),
+		regexp.MustCompile(`(?i)\[[^\]]*]\(\s*(?P<path>[^)\s]+\.` + scriptExts + `)\s*\)`),
+		regexp.MustCompile(`(?i)(?P<path>(?:\.{1,2}/)*(?:[\w.-]+/)*scripts?/[\w.-]+\.` + scriptExts + `)`),
+		regexp.MustCompile(`(?i)\bimport\s+(?:[^'"\n]*?from\s+)?['"](?P<path>[^'"]+\.(?:py|js|ts))['"]`),
+		regexp.MustCompile(`(?i)\brequire\s*\(\s*['"](?P<path>[^'"]+\.(?:js|ts))['"]\s*\)`),
+		regexp.MustCompile("(?i)<script\\s+src=['\"](?P<path>[^'\"]+)['\"]"),
+		regexp.MustCompile("(?i)\\bsource\\s+(?P<path>[^\\s'\"`]+\\.(?:sh|bash))"),
 	}
+)
+
+const (
+	// minLatinLettersForMixedScript avoids judging very short strings, and
+	// maxConfusableShare is the point above which the text is simply written in
+	// that script rather than disguised as Latin.
+	minLatinLettersForMixedScript = 20
+	maxConfusableShare            = 0.10
 )
 
 type Scorer struct {
@@ -148,6 +183,10 @@ func NewScorer(threshold int) *Scorer {
 }
 
 func (s *Scorer) Analyze(path string, metadata *model.SkillMetadata, body string) *model.AnalysisResult {
+	// Populate referenced files before copying the metadata into the result,
+	// otherwise the report carries a stale copy with no references.
+	metadata.ReferencedFiles = s.extractReferencedFiles(body)
+
 	result := &model.AnalysisResult{
 		SkillName:      metadata.Name,
 		FilePath:       path,
@@ -156,7 +195,6 @@ func (s *Scorer) Analyze(path string, metadata *model.SkillMetadata, body string
 		CategoryScores: s.initCategoryScores(),
 	}
 
-	metadata.ReferencedFiles = s.extractReferencedFiles(body)
 	result.Findings = append(result.Findings, s.checkToolAccess(metadata)...)
 	result.Findings = append(result.Findings, s.checkShellExecution(body)...)
 	result.Findings = append(result.Findings, s.checkFileAccess(body)...)
@@ -176,11 +214,7 @@ func (s *Scorer) Analyze(path string, metadata *model.SkillMetadata, body string
 		result.Findings = append(result.Findings, referencedFindings...)
 	}
 
-	result.CategoryScores = s.calculateCategoryScores(result.Findings)
-
-	overallScore := s.calculateOverallScore(result.CategoryScores)
-	result.OverallScore = overallScore
-	result.Passed = overallScore >= s.threshold
+	s.finalize(result)
 
 	return result
 }
@@ -207,13 +241,25 @@ func (s *Scorer) AnalyzeReference(path string, body string) *model.AnalysisResul
 	result.Findings = append(result.Findings, s.checkHttpDependencies(body)...)
 	result.Findings = append(result.Findings, s.checkHiddenCharacters(body)...)
 
-	result.CategoryScores = s.calculateCategoryScores(result.Findings)
-
-	overallScore := s.calculateOverallScore(result.CategoryScores)
-	result.OverallScore = overallScore
-	result.Passed = overallScore >= s.threshold
+	s.finalize(result)
 
 	return result
+}
+
+// finalize computes the category and overall scores and decides pass/fail.
+// A critical finding is disqualifying on its own: the weighted average across
+// five categories can otherwise dilute a single critical risk into a pass.
+func (s *Scorer) finalize(result *model.AnalysisResult) {
+	result.CategoryScores = s.calculateCategoryScores(result.Findings)
+	result.OverallScore = s.calculateOverallScore(result.CategoryScores)
+
+	for _, f := range result.Findings {
+		if f.Severity == model.SeverityCritical {
+			result.CriticalCount++
+		}
+	}
+
+	result.Passed = result.OverallScore >= s.threshold && result.CriticalCount == 0
 }
 
 func (s *Scorer) initCategoryScores() []model.CategoryScore {
@@ -226,35 +272,45 @@ func (s *Scorer) initCategoryScores() []model.CategoryScore {
 	}
 }
 
+// calculateCategoryScores scores each category and records, on every finding,
+// the deduction that was actually applied to it. The findings previously
+// carried hardcoded values that did not match the scoring maths, so the report
+// could not be reconciled with the score.
 func (s *Scorer) calculateCategoryScores(findings []model.Finding) []model.CategoryScore {
 	scores := s.initCategoryScores()
 
-	counts := map[model.Category]int{}
-	for _, f := range findings {
-		counts[f.Category]++
-	}
+	// Decay is applied per occurrence rank, so the Nth finding of a category
+	// deducts less than the (N-1)th but never cancels what came before it.
+	occurrences := map[model.Category]int{}
+	deducted := map[model.ScoreCategory]float64{}
 
-	for _, f := range findings {
-		cat := f.ScoreCat
+	for i := range findings {
+		cat := findings[i].ScoreCat
 		if cat == "" {
-			cat = s.mapFindingToScoreCategory(f.Category)
+			cat = s.mapFindingToScoreCategory(findings[i].Category)
 		}
+		occurrences[findings[i].Category]++
 
-		for i := range scores {
-			if scores[i].Category == cat {
-				scores[i].Findings++
-				scores[i].Breakdown = append(scores[i].Breakdown, f)
-				deduction := s.calculateDeductionWithDecay(f.Severity, counts[f.Category])
-				scores[i].Score -= int(deduction)
+		deduction := s.calculateDeductionWithDecay(findings[i].Severity, occurrences[findings[i].Category])
+		findings[i].Deduction = int(math.Round(deduction))
+
+		for j := range scores {
+			if scores[j].Category == cat {
+				scores[j].Findings++
+				scores[j].Breakdown = append(scores[j].Breakdown, findings[i])
+				deducted[cat] += deduction
+
 				break
 			}
 		}
 	}
 
 	for i := range scores {
-		if scores[i].Score < 0 {
-			scores[i].Score = 0
+		score := 100 - int(math.Round(deducted[scores[i].Category]))
+		if score < 0 {
+			score = 0
 		}
+		scores[i].Score = score
 	}
 
 	return scores
@@ -279,20 +335,29 @@ func (s *Scorer) mapFindingToScoreCategory(cat model.Category) model.ScoreCatego
 	}
 }
 
-func (s *Scorer) calculateDeductionWithDecay(sev model.Severity, count int) float64 {
-	baseDeduction := s.getBaseDeduction(sev)
+// calculateDeductionWithDecay returns the deduction for the occurrence-th
+// finding of a category. Repeats cost progressively less, but every occurrence
+// still costs something: more findings must never improve a score.
+func (s *Scorer) calculateDeductionWithDecay(sev model.Severity, occurrence int) float64 {
+	if occurrence < 1 {
+		occurrence = 1
+	}
 
+	return s.getBaseDeduction(sev) * math.Exp(-s.getDecayRate(sev)*float64(occurrence-1))
+}
+
+func (s *Scorer) getDecayRate(sev model.Severity) float64 {
 	switch sev {
 	case model.SeverityCritical:
-		return baseDeduction * math.Exp(-float64(count-1)*10)
+		return 0.5
 	case model.SeverityHigh:
-		return baseDeduction * math.Exp(-float64(count-1)*1)
+		return 0.4
 	case model.SeverityMedium:
-		return baseDeduction * math.Exp(-float64(count-1)*0.05)
+		return 0.3
 	case model.SeverityLow:
-		return baseDeduction * math.Exp(-float64(count-1)*0.025)
+		return 0.2
 	default:
-		return float64(baseDeduction)
+		return 0.3
 	}
 }
 
@@ -344,20 +409,33 @@ func (s *Scorer) calculateOverallScore(catScores []model.CategoryScore) int {
 	return score
 }
 
+// extractReferencedFiles collects local script paths referenced by the skill
+// body. Each pattern exposes the path as the named group "path"; reading the
+// last group instead returned the file extension.
 func (s *Scorer) extractReferencedFiles(body string) []string {
 	var files []string
 	seen := make(map[string]bool)
 
 	for _, pattern := range referencePatterns {
-		matches := pattern.FindAllStringSubmatch(body, -1)
-		for _, match := range matches {
-			if len(match) > 1 {
-				file := match[len(match)-1]
-				if !seen[file] {
-					seen[file] = true
-					files = append(files, file)
-				}
+		idx := pattern.SubexpIndex("path")
+		if idx < 0 {
+			continue
+		}
+
+		for _, match := range pattern.FindAllStringSubmatch(body, -1) {
+			if idx >= len(match) {
+				continue
 			}
+
+			file := strings.TrimSpace(match[idx])
+			// Remote sources are not local files; they are covered by the
+			// network and HTTP dependency checks instead.
+			if file == "" || seen[file] || strings.Contains(file, "://") {
+				continue
+			}
+
+			seen[file] = true
+			files = append(files, file)
 		}
 	}
 
@@ -375,7 +453,6 @@ func (s *Scorer) checkToolAccess(m *model.SkillMetadata) []model.Finding {
 				Category:    model.CategoryToolAccess,
 				Severity:    model.SeverityHigh,
 				Description: "Unrestricted tool access with wildcard: " + tool,
-				Deduction:   15,
 				Pattern:     tool,
 				ScoreCat:    model.CatQuality,
 			})
@@ -384,7 +461,6 @@ func (s *Scorer) checkToolAccess(m *model.SkillMetadata) []model.Finding {
 				Category:    model.CategoryToolAccess,
 				Severity:    model.SeverityHigh,
 				Description: "Shell/command execution tool: " + tool,
-				Deduction:   15,
 				Pattern:     tool,
 				ScoreCat:    model.CatQuality,
 			})
@@ -403,7 +479,6 @@ func (s *Scorer) checkShellExecution(body string) []model.Finding {
 				Category:    model.CategoryShellExecution,
 				Severity:    model.SeverityHigh,
 				Description: "Shell command execution pattern detected",
-				Deduction:   20,
 				Pattern:     pattern.String(),
 				ScoreCat:    model.CatSecurity,
 			})
@@ -423,7 +498,6 @@ func (s *Scorer) checkFileAccess(body string) []model.Finding {
 				Category:    model.CategoryFileAccess,
 				Severity:    model.SeverityHigh,
 				Description: "File write/delete operation detected",
-				Deduction:   15,
 				Pattern:     pattern.String(),
 				ScoreCat:    model.CatSecurity,
 			})
@@ -440,8 +514,8 @@ func (s *Scorer) checkNetworkAccess(body string) []model.Finding {
 
 	urls := urlPattern.FindAllString(body, -1)
 	for _, url := range urls {
-		url = strings.TrimSpace(url)
-		if seen[url] {
+		url = strings.TrimRight(strings.TrimSpace(url), ".,;:!?")
+		if url == "" || seen[url] {
 			continue
 		}
 		seen[url] = true
@@ -451,7 +525,6 @@ func (s *Scorer) checkNetworkAccess(body string) []model.Finding {
 				Category:    model.CategoryNetwork,
 				Severity:    model.SeverityMedium,
 				Description: "External URL to untrusted domain: " + url,
-				Deduction:   10,
 				Pattern:     url,
 				ScoreCat:    model.CatSecurity,
 			})
@@ -461,26 +534,50 @@ func (s *Scorer) checkNetworkAccess(body string) []model.Finding {
 	return findings
 }
 
-func (s *Scorer) isUntrustedURL(url string) bool {
-	lowerURL := strings.ToLower(url)
-
-	for _, domain := range trustedDomains {
-		if strings.Contains(lowerURL, domain) {
-			return false
-		}
+// isUntrustedURL decides trust from the parsed host only. Substring matching on
+// the whole URL let "https://github.com.evil.net/x" and "https://evil.com/?r=github.com"
+// pass as trusted.
+func (s *Scorer) isUntrustedURL(rawURL string) bool {
+	host := urlHost(rawURL)
+	if host == "" {
+		return true
 	}
 
-	for _, tld := range trustedTLDs {
-		if strings.HasSuffix(lowerURL, tld) {
-			return false
-		}
-	}
-
-	if strings.Contains(lowerURL, "localhost") || strings.Contains(lowerURL, "127.0.0.1") {
+	if host == "localhost" || host == "127.0.0.1" || host == "::1" {
 		return false
 	}
 
+	for _, domain := range trustedDomains {
+		if hostMatches(host, domain) {
+			return false
+		}
+	}
+
+	for _, suffix := range trustedHostSuffixes {
+		if hostMatches(host, suffix) {
+			return false
+		}
+	}
+
 	return true
+}
+
+// hostMatches reports whether host is domain itself or a subdomain of it.
+func hostMatches(host, domain string) bool {
+	domain = strings.ToLower(strings.TrimPrefix(domain, "."))
+	return host == domain || strings.HasSuffix(host, "."+domain)
+}
+
+// urlHost returns the lowercase hostname of rawURL, or "" if it has none.
+func urlHost(rawURL string) string {
+	rawURL = strings.TrimRight(strings.TrimSpace(rawURL), ".,;:!?")
+
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return ""
+	}
+
+	return strings.TrimSuffix(strings.ToLower(parsed.Hostname()), ".")
 }
 
 func (s *Scorer) checkCredentials(body string) []model.Finding {
@@ -492,7 +589,6 @@ func (s *Scorer) checkCredentials(body string) []model.Finding {
 				Category:    model.CategoryCredentials,
 				Severity:    model.SeverityHigh,
 				Description: "Potential credential or secret reference detected",
-				Deduction:   20,
 				Pattern:     pattern.String(),
 				ScoreCat:    model.CatSecurity,
 			})
@@ -512,7 +608,6 @@ func (s *Scorer) checkPromptInjection(body string) []model.Finding {
 				Category:    model.CategoryPromptInjection,
 				Severity:    model.SeverityMedium,
 				Description: "Potential prompt injection pattern detected",
-				Deduction:   15,
 				Pattern:     pattern.String(),
 				ScoreCat:    model.CatTransparency,
 			})
@@ -531,7 +626,6 @@ func (s *Scorer) checkSupplyChain(m *model.SkillMetadata) []model.Finding {
 			Category:    model.CategorySupplyChain,
 			Severity:    model.SeverityLow,
 			Description: "No source URL provided - unverifiable skill",
-			Deduction:   10,
 			ScoreCat:    model.CatSupplyChain,
 		})
 	}
@@ -547,7 +641,6 @@ func (s *Scorer) checkMetadata(m *model.SkillMetadata) []model.Finding {
 			Category:    model.CategoryMetadata,
 			Severity:    model.SeverityLow,
 			Description: "Missing description - reduces transparency",
-			Deduction:   5,
 			ScoreCat:    model.CatTransparency,
 		})
 	}
@@ -557,7 +650,6 @@ func (s *Scorer) checkMetadata(m *model.SkillMetadata) []model.Finding {
 			Category:    model.CategoryMetadata,
 			Severity:    model.SeverityLow,
 			Description: "No trigger keywords defined - unclear when skill activates",
-			Deduction:   5,
 			ScoreCat:    model.CatTransparency,
 		})
 	}
@@ -574,7 +666,6 @@ func (s *Scorer) checkObfuscatedCode(body string) []model.Finding {
 				Category:    model.CategoryObfuscatedCode,
 				Severity:    model.SeverityCritical,
 				Description: "Obfuscated code pattern detected (eval/Function/setTimeout)",
-				Deduction:   30,
 				Pattern:     pattern.String(),
 				ScoreCat:    model.CatSecurity,
 			})
@@ -594,7 +685,6 @@ func (s *Scorer) checkGitDependencies(body string) []model.Finding {
 				Category:    model.CategoryGitDependency,
 				Severity:    model.SeverityMedium,
 				Description: "Git dependency or operation detected",
-				Deduction:   15,
 				Pattern:     pattern.String(),
 				ScoreCat:    model.CatSupplyChain,
 			})
@@ -614,7 +704,6 @@ func (s *Scorer) checkHttpDependencies(body string) []model.Finding {
 				Category:    model.CategoryExternalScripts,
 				Severity:    model.SeverityCritical,
 				Description: "HTTP dependency with code execution risk detected",
-				Deduction:   35,
 				Pattern:     pattern.String(),
 				ScoreCat:    model.CatSupplyChain,
 			})
@@ -634,7 +723,6 @@ func (s *Scorer) checkTelemetry(body string) []model.Finding {
 				Category:    model.CategoryTelemetry,
 				Severity:    model.SeverityLow,
 				Description: "Potential telemetry or analytics detected",
-				Deduction:   5,
 				Pattern:     pattern.String(),
 				ScoreCat:    model.CatMaintenance,
 			})
@@ -649,47 +737,60 @@ func (s *Scorer) checkHiddenCharacters(body string) []model.Finding {
 	var findings []model.Finding
 
 	for _, pattern := range hiddenCharPatterns {
-		if pattern.MatchString(body) {
-			matches := pattern.FindAllString(body, -1)
-			if len(matches) > 0 {
-				findings = append(findings, model.Finding{
-					Category:    model.CategoryHiddenChars,
-					Severity:    model.SeverityHigh,
-					Description: "Hidden characters detected (zero-width, RTL, control chars)",
-					Deduction:   25,
-					Pattern:     fmt.Sprintf("Found %d hidden character(s)", len(matches)),
-					ScoreCat:    model.CatSecurity,
-				})
-				break
-			}
+		matches := pattern.FindAllString(body, -1)
+		if len(matches) > 0 {
+			findings = append(findings, model.Finding{
+				Category:    model.CategoryHiddenChars,
+				Severity:    model.SeverityHigh,
+				Description: "Hidden characters detected (zero-width, control chars)",
+				Pattern:     fmt.Sprintf("Found %d hidden character(s)", len(matches)),
+				ScoreCat:    model.CatSecurity,
+			})
+
+			break
 		}
 	}
 
-	reversePattern := regexp.MustCompile(`(\xE2\x80\x8E|\xE2\x80\x8F|\xE2\x80\xAA|\xE2\x80\xAB)`)
-	if reversePattern.MatchString(body) {
+	if bidi := bidiPattern.FindAllString(body, -1); len(bidi) > 0 {
 		findings = append(findings, model.Finding{
 			Category:    model.CategoryHiddenChars,
 			Severity:    model.SeverityHigh,
-			Description: "RTL (right-to-left) override characters detected",
-			Deduction:   25,
-			Pattern:     "RTL override",
+			Description: "Bidirectional override characters detected (text may render differently than it reads)",
+			Pattern:     fmt.Sprintf("Found %d bidi control character(s)", len(bidi)),
 			ScoreCat:    model.CatSecurity,
 		})
 	}
 
-	homoglyphs := homoglyphPatterns[0].FindAllString(body, -1)
-	if len(homoglyphs) > 10 {
+	if count, ok := detectMixedScript(body); ok {
 		findings = append(findings, model.Finding{
 			Category:    model.CategoryHiddenChars,
 			Severity:    model.SeverityMedium,
-			Description: "Potential homoglyph characters detected (cyrillic lookalikes)",
-			Deduction:   15,
-			Pattern:     fmt.Sprintf("Found %d potential homoglyph(s)", len(homoglyphs)),
+			Description: "Mixed-script characters detected (Cyrillic/Greek lookalikes in Latin text)",
+			Pattern:     fmt.Sprintf("Found %d confusable character(s)", count),
 			ScoreCat:    model.CatSecurity,
 		})
 	}
 
 	return findings
+}
+
+// detectMixedScript reports Cyrillic or Greek characters sprinkled through text
+// that is otherwise Latin, which is what a homoglyph attack looks like. Text
+// genuinely written in those scripts, and accented Latin, are both left alone.
+func detectMixedScript(body string) (int, bool) {
+	confusable := len(confusableScriptPattern.FindAllString(body, -1))
+	if confusable == 0 {
+		return 0, false
+	}
+
+	latin := len(latinLetterPattern.FindAllString(body, -1))
+	if latin < minLatinLettersForMixedScript {
+		return confusable, false
+	}
+
+	share := float64(confusable) / float64(confusable+latin)
+
+	return confusable, share < maxConfusableShare
 }
 
 func (s *Scorer) GetReferencedScriptsPath(basePath string, files []string) []string {
@@ -703,6 +804,13 @@ func (s *Scorer) GetReferencedScriptsPath(basePath string, files []string) []str
 	return scripts
 }
 
+// maxScriptBytes caps how much of a referenced script is read into memory.
+const maxScriptBytes = 1 << 20 // 1 MiB
+
+// analyzeReferencedScripts scans the scripts a skill points at. Reference paths
+// come from the skill body and are therefore attacker-controlled: they are
+// resolved strictly inside the skill's own directory so a crafted skill cannot
+// turn the scanner into a reader of arbitrary files such as ~/.aws/credentials.
 func (s *Scorer) analyzeReferencedScripts(basePath string, files []string) []model.Finding {
 	var findings []model.Finding
 
@@ -710,80 +818,119 @@ func (s *Scorer) analyzeReferencedScripts(basePath string, files []string) []mod
 	scriptFiles := s.GetReferencedScriptsPath(basePath, files)
 
 	for _, scriptFile := range scriptFiles {
-		var scriptPath string
-		if filepath.IsAbs(scriptFile) {
-			scriptPath = scriptFile
-		} else {
-			scriptPath = filepath.Join(baseDir, scriptFile)
+		scriptPath, ok := resolveWithin(baseDir, scriptFile)
+		if !ok {
+			continue
 		}
 
-		content, err := os.ReadFile(scriptPath) // #nosec G304 -- path derived from WalkDir in user-specified directory
+		scriptContent, err := readLimited(scriptPath, maxScriptBytes)
 		if err != nil {
 			continue
 		}
 
-		scriptContent := string(content)
+		findings = append(findings, s.scanScriptContent(scriptFile, scriptPath, scriptContent)...)
+	}
 
-		for _, pattern := range httpDependencyPatterns {
-			if pattern.MatchString(scriptContent) {
-				findings = append(findings, model.Finding{
-					Category:    model.CategoryExternalScripts,
-					Severity:    model.SeverityCritical,
-					Description: "HTTP dependency with code execution risk in referenced script: " + scriptFile,
-					Deduction:   40,
-					Pattern:     pattern.String(),
-					Location:    scriptPath,
-					ScoreCat:    model.CatSupplyChain,
-				})
-				break
-			}
-		}
+	return findings
+}
 
-		for _, pattern := range shellPatterns {
-			if pattern.MatchString(scriptContent) {
-				findings = append(findings, model.Finding{
-					Category:    model.CategoryShellExecution,
-					Severity:    model.SeverityHigh,
-					Description: "Shell execution pattern in referenced script: " + scriptFile,
-					Deduction:   25,
-					Pattern:     pattern.String(),
-					Location:    scriptPath,
-					ScoreCat:    model.CatSecurity,
-				})
-				break
-			}
-		}
+// scanScriptContent applies the script-level detectors, reporting at most one
+// finding per detector.
+func (s *Scorer) scanScriptContent(scriptFile, scriptPath, content string) []model.Finding {
+	checks := []struct {
+		patterns    []*regexp.Regexp
+		category    model.Category
+		severity    model.Severity
+		description string
+		scoreCat    model.ScoreCategory
+	}{
+		{httpDependencyPatterns, model.CategoryExternalScripts, model.SeverityCritical,
+			"HTTP dependency with code execution risk in referenced script: ", model.CatSupplyChain},
+		{shellPatterns, model.CategoryShellExecution, model.SeverityHigh,
+			"Shell execution pattern in referenced script: ", model.CatSecurity},
+		{credentialPatterns, model.CategoryCredentials, model.SeverityHigh,
+			"Credential pattern in referenced script: ", model.CatSecurity},
+		{obfuscatedPatterns, model.CategoryObfuscatedCode, model.SeverityCritical,
+			"Obfuscated code in referenced script: ", model.CatSecurity},
+	}
 
-		for _, pattern := range credentialPatterns {
-			if pattern.MatchString(scriptContent) {
-				findings = append(findings, model.Finding{
-					Category:    model.CategoryCredentials,
-					Severity:    model.SeverityHigh,
-					Description: "Credential pattern in referenced script: " + scriptFile,
-					Deduction:   25,
-					Pattern:     pattern.String(),
-					Location:    scriptPath,
-					ScoreCat:    model.CatSecurity,
-				})
-				break
-			}
-		}
+	var findings []model.Finding
 
-		for _, pattern := range obfuscatedPatterns {
-			if pattern.MatchString(scriptContent) {
-				findings = append(findings, model.Finding{
-					Category:    model.CategoryObfuscatedCode,
-					Severity:    model.SeverityCritical,
-					Description: "Obfuscated code in referenced script: " + scriptFile,
-					Deduction:   35,
-					Pattern:     pattern.String(),
-					Location:    scriptPath,
-					ScoreCat:    model.CatSecurity,
-				})
-				break
+	for _, check := range checks {
+		for _, pattern := range check.patterns {
+			if !pattern.MatchString(content) {
+				continue
 			}
+
+			findings = append(findings, model.Finding{
+				Category:    check.category,
+				Severity:    check.severity,
+				Description: check.description + scriptFile,
+				Pattern:     pattern.String(),
+				Location:    scriptPath,
+				ScoreCat:    check.scoreCat,
+			})
+
+			break
 		}
 	}
 
 	return findings
+}
+
+// resolveWithin resolves ref against baseDir and reports whether the result
+// stays inside baseDir. Absolute paths, URLs and traversal out of the directory
+// are all rejected, symlinks included.
+func resolveWithin(baseDir, ref string) (string, bool) {
+	if ref == "" || filepath.IsAbs(ref) || strings.Contains(ref, "://") {
+		return "", false
+	}
+
+	base, err := filepath.Abs(baseDir)
+	if err != nil {
+		return "", false
+	}
+
+	full := filepath.Join(base, filepath.FromSlash(ref))
+	if !isWithin(base, full) {
+		return "", false
+	}
+
+	// A symlink inside the directory can still point outside it.
+	resolvedBase, err := filepath.EvalSymlinks(base)
+	if err != nil {
+		resolvedBase = base
+	}
+
+	if resolved, err := filepath.EvalSymlinks(full); err == nil && !isWithin(resolvedBase, resolved) {
+		return "", false
+	}
+
+	return full, true
+}
+
+func isWithin(base, target string) bool {
+	rel, err := filepath.Rel(base, target)
+	if err != nil {
+		return false
+	}
+
+	return rel != ".." && !strings.HasPrefix(rel, ".."+string(os.PathSeparator))
+}
+
+// readLimited reads at most max bytes, so a huge referenced file cannot
+// exhaust memory during a scan.
+func readLimited(path string, max int64) (string, error) {
+	f, err := os.Open(path) // #nosec G304 -- path is confined to the skill directory by resolveWithin
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = f.Close() }()
+
+	content, err := io.ReadAll(io.LimitReader(f, max))
+	if err != nil {
+		return "", err
+	}
+
+	return string(content), nil
 }

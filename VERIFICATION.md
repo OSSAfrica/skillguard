@@ -44,17 +44,25 @@ All SkillGuard releases include a `checksums.txt` file containing SHA-256 checks
    # Compare output with checksum in checksums.txt
    ```
 
-### Method 2: GPG Signature Verification (Future)
+### Method 2: Cosign Signature Verification
 
-Once Sigstore/Cosign signing is implemented, you will be able to verify signatures using:
+Container images are signed with [Sigstore Cosign](https://docs.sigstore.dev) keylessly during release: there is no
+public key to fetch, so verification checks *who* signed instead, by matching the signing identity to this
+repository's release workflow.
 
 ```bash
 # Install Cosign
-brew install cosign/tap/cosign
+brew install cosign
 
-# Verify release signature
-cosign verify --key ossf://skillguard/skillguard ghcr.io/ossafrica/skillguard:v0.1.0
+# Verify the image was signed by SkillGuard's release workflow
+cosign verify \
+  --certificate-identity-regexp "^https://github\.com/OSSAfrica/skillguard/\.github/workflows/release\.yml@refs/" \
+  --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+  ghcr.io/ossafrica/skillguard:latest
 ```
+
+Both flags matter. `cosign verify` without an identity constraint tells you only that *something* signed the image,
+not that SkillGuard did.
 
 ## Docker Image Verification
 
@@ -63,11 +71,21 @@ cosign verify --key ossf://skillguard/skillguard ghcr.io/ossafrica/skillguard:v0
 SkillGuard containers are built on Chainguard images which are signed and verified:
 
 ```bash
-# Pull the image
-docker pull ghcr.io/ossafrica/skillguard:latest
+# Pull a pinned version rather than a moving tag
+docker pull ghcr.io/ossafrica/skillguard:v0.1.0
 
-# Verify image signature (requires Cosign)
-cosign verify ghcr.io/ossafrica/skillguard:latest
+# Resolve it to a digest and pin that in CI
+docker inspect --format='{{index .RepoDigests 0}}' ghcr.io/ossafrica/skillguard:v0.1.0
+```
+
+Every release publishes an immutable version tag alongside `latest`. In CI, pin the version (or the digest) through
+the action's `version` input:
+
+```yaml
+- uses: ossafrica/skillguard@v1
+  with:
+    path: './skills'
+    version: 'v0.1.0'
 ```
 
 ### Verify Image Provenance
@@ -107,9 +125,9 @@ Source Code (GitHub)
        ↓
 Build (GitHub Actions)
        ↓
-Sign (Cosign/Sigstore - Future)
+Sign by digest (Cosign/Sigstore, keyless)
        ↓
-Release (GitHub Releases)
+Release (GitHub Releases + GHCR version tag)
        ↓
 Verify (User - This Guide)
 ```

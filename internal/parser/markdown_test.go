@@ -8,7 +8,7 @@ import (
 
 func TestParseAllowedTools(t *testing.T) {
 	tests := []struct {
-		name string
+		name  string
 		input interface{}
 		want  []string
 	}{
@@ -67,11 +67,11 @@ func TestParseAllowedTools(t *testing.T) {
 
 func TestExtractFrontmatter(t *testing.T) {
 	tests := []struct {
-		name        string
-		content     string
-		wantErr     bool
-		wantName    string
-		wantBody    string
+		name     string
+		content  string
+		wantErr  bool
+		wantName string
+		wantBody string
 	}{
 		{
 			name: "valid frontmatter",
@@ -162,10 +162,10 @@ func TestParseSkillFile(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	tests := []struct {
-		name        string
-		content     string
-		wantName    string
-		wantErr     bool
+		name     string
+		content  string
+		wantName string
+		wantErr  bool
 	}{
 		{
 			name: "valid skill file",
@@ -190,7 +190,7 @@ Body`,
 			wantErr:  false,
 		},
 		{
-			name: "nonexistent file",
+			name:    "nonexistent file",
 			content: "",
 			wantErr: true,
 		},
@@ -264,9 +264,9 @@ name: test
 			wantErr: true,
 		},
 		{
-			name:     "nonexistent file",
-			content:  "",
-			wantErr:  true,
+			name:    "nonexistent file",
+			content: "",
+			wantErr: true,
 		},
 	}
 
@@ -334,7 +334,7 @@ This is a reference file.`
 	}
 
 	t.Run("find skill files in directory", func(t *testing.T) {
-		files, err := FindSkillFiles(tmpDir)
+		files, _, err := FindSkillFiles(tmpDir)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -363,7 +363,7 @@ This is a reference file.`
 	})
 
 	t.Run("find single skill file", func(t *testing.T) {
-		files, err := FindSkillFiles(skillFile)
+		files, _, err := FindSkillFiles(skillFile)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -378,14 +378,14 @@ This is a reference file.`
 	})
 
 	t.Run("nonexistent path", func(t *testing.T) {
-		_, err := FindSkillFiles(filepath.Join(tmpDir, "nonexistent"))
+		_, _, err := FindSkillFiles(filepath.Join(tmpDir, "nonexistent"))
 		if err == nil {
 			t.Error("expected error for nonexistent path")
 		}
 	})
 
 	t.Run("nested directory with uppercase SKILL.MD", func(t *testing.T) {
-		files, err := FindSkillFiles(nestedSkillDir)
+		files, _, err := FindSkillFiles(nestedSkillDir)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -45,64 +46,145 @@ func init() {
 	rootCmd.AddCommand(scanCmd)
 }
 
+// errSkillsFailed reports skills scoring below the threshold. It is a distinct
+// outcome from an execution error, and maps to exit code 1 rather than 2.
+var errSkillsFailed = errors.New("one or more skills scored below the threshold")
+
 func runScan(cmd *cobra.Command, args []string) error {
 	cfg := loadConfig()
 
-	var paths []string
-	if len(args) > 0 {
-		paths = args
-	} else if scanPath != "" {
-		paths = []string{scanPath}
-	} else {
-		paths = []string{cfg.DefaultPath}
+	// An explicit flag wins; otherwise the configured threshold applies.
+	if !cmd.Flags().Changed("threshold") {
+		threshold = cfg.Threshold
 	}
 
-	var allFiles []parser.FoundFile
-	for _, p := range paths {
-		expandedPath := expandPath(p)
-		files, err := parser.FindSkillFiles(expandedPath)
-		if err != nil {
-			return fmt.Errorf("failed to find skill files in %s: %w", p, err)
+	if err := validateThreshold(threshold); err != nil {
+		return err
+	}
+
+	paths := resolveScanPaths(args, scanPath, cfg)
+
+	report, warnings, err := scanPaths(paths, threshold)
+	if err != nil {
+		return err
+	}
+
+	if !quietMode {
+		for _, w := range warnings {
+			color.Yellow("Warning: %s", w)
 		}
-		allFiles = append(allFiles, files...)
 	}
 
-	if len(allFiles) == 0 {
+	if report.TotalSkills == 0 {
 		if !quietMode {
 			color.Yellow("No skill files (*.md) found in paths: %v", paths)
 		}
+
 		return nil
 	}
 
+	if outputFile != "" {
+		if err := writeJSONReport(outputFile, report); err != nil {
+			return fmt.Errorf("failed to write report: %w", err)
+		}
+
+		color.Green("Report written to: %s", outputFile)
+	}
+
+	if !quietMode {
+		printColoredReport(report)
+	}
+
+	return scanOutcome(report)
+}
+
+// scanOutcome turns a finished report into the command's result.
+func scanOutcome(report *model.ScanReport) error {
+	if report.Failed > 0 {
+		return errSkillsFailed
+	}
+
+	return nil
+}
+
+// resolveScanPaths picks the paths to scan: positional arguments first, then
+// --path, then the configured default.
+func resolveScanPaths(args []string, flagPath string, cfg *Config) []string {
+	if len(args) > 0 {
+		paths := make([]string, 0, len(args))
+		for _, arg := range args {
+			paths = append(paths, splitPaths(arg)...)
+		}
+
+		return paths
+	}
+
+	if flagPath != "" {
+		return splitPaths(flagPath)
+	}
+
+	return []string{cfg.DefaultPath}
+}
+
+// splitPaths splits the documented comma-separated form. A path that exists as
+// written wins, since a filename may legitimately contain a comma.
+func splitPaths(raw string) []string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil
+	}
+
+	if !strings.Contains(raw, ",") {
+		return []string{raw}
+	}
+
+	if _, err := os.Stat(expandPath(raw)); err == nil {
+		return []string{raw}
+	}
+
+	var paths []string
+	for _, part := range strings.Split(raw, ",") {
+		if part = strings.TrimSpace(part); part != "" {
+			paths = append(paths, part)
+		}
+	}
+
+	return paths
+}
+
+// scanPaths analyses every skill and reference file under the given paths,
+// returning the report and warnings for anything that had to be skipped.
+func scanPaths(paths []string, threshold int) (*model.ScanReport, []string, error) {
+	var (
+		allFiles []parser.FoundFile
+		warnings []string
+	)
+
+	for _, p := range paths {
+		files, pathWarnings, err := parser.FindSkillFiles(expandPath(p))
+		if err != nil {
+			return nil, warnings, fmt.Errorf("failed to find skill files in %s: %w", p, err)
+		}
+
+		warnings = append(warnings, pathWarnings...)
+		allFiles = append(allFiles, files...)
+	}
+
 	scorer := analyzer.NewScorer(threshold)
-	report := model.ScanReport{
+	report := &model.ScanReport{
 		ScanTime:  time.Now().UTC(),
 		Threshold: threshold,
 		Results:   []model.AnalysisResult{},
 	}
 
 	for _, f := range allFiles {
-		if f.FileType == parser.FileTypeReference {
-			body, err := parser.ExtractBodyOnly(f.Path)
-			if err != nil {
-				if !quietMode {
-					color.Red("Error reading %s: %v", f.Path, err)
-				}
-				continue
-			}
-			result := scorer.AnalyzeReference(f.Path, body)
-			report.Results = append(report.Results, *result)
-		} else {
-			metadata, body, err := parser.ParseSkillFile(f.Path)
-			if err != nil {
-				if !quietMode {
-					color.Red("Error parsing %s: %v", f.Path, err)
-				}
-				continue
-			}
-			result := scorer.Analyze(f.Path, metadata, body)
-			report.Results = append(report.Results, *result)
+		result, err := analyzeFile(scorer, f)
+		if err != nil {
+			warnings = append(warnings, fmt.Sprintf("skipped %s: %v", f.Path, err))
+			continue
 		}
+
+		report.Results = append(report.Results, *result)
 	}
 
 	report.TotalSkills = len(report.Results)
@@ -114,31 +196,34 @@ func runScan(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	if outputFile != "" {
-		if err := writeJSONReport(outputFile, &report); err != nil {
-			return fmt.Errorf("failed to write report: %w", err)
+	return report, warnings, nil
+}
+
+func analyzeFile(scorer *analyzer.Scorer, f parser.FoundFile) (*model.AnalysisResult, error) {
+	if f.FileType == parser.FileTypeReference {
+		body, err := parser.ExtractBodyOnly(f.Path)
+		if err != nil {
+			return nil, err
 		}
-		color.Green("Report written to: %s", outputFile)
+
+		return scorer.AnalyzeReference(f.Path, body), nil
 	}
 
-	if !quietMode {
-		printColoredReport(&report)
+	metadata, body, err := parser.ParseSkillFile(f.Path)
+	if err != nil {
+		return nil, err
 	}
 
-	if report.Failed > 0 {
-		os.Exit(1)
-	}
-
-	return nil
+	return scorer.Analyze(f.Path, metadata, body), nil
 }
 
 func expandPath(path string) string {
 	if len(path) > 1 && path[0] == '~' {
-		home := os.Getenv("HOME")
-		if home != "" {
+		if home := homeDir(); home != "" {
 			return home + path[1:]
 		}
 	}
+
 	return path
 }
 
@@ -185,6 +270,13 @@ func printSkillResult(r *model.AnalysisResult, verbose bool) {
 	}
 	fmt.Println()
 	fmt.Printf("  File: %s\n", r.FilePath)
+
+	if r.CriticalCount > 0 {
+		_, err := color.New(color.FgHiRed).Printf("  Critical findings: %d (automatic fail)\n", r.CriticalCount)
+		if err != nil {
+			return
+		}
+	}
 
 	hasDetailedBreakdown := false
 	for _, cs := range r.CategoryScores {

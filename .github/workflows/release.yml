@@ -34,15 +34,16 @@ jobs:
           MINOR=0
           PATCH=0
           
-          for commit in $COMMITS; do
+          while IFS= read -r commit; do
+            [[ -z "$commit" ]] && continue
             if [[ "$commit" == *"BREAKING"* ]] || [[ "$commit" == *"breaking change"* ]]; then
               MAJOR=1
               break
             fi
-            if [[ "$commit" == feat:* ]] || [[ "$commit" == feat\( ]]; then
+            if [[ "$commit" == feat:* ]] || [[ "$commit" == feat\(* ]]; then
               MINOR=1
             fi
-          done
+          done <<< "$COMMITS"
           
           MAJOR_NUM=$(echo $PREV_VERSION | cut -d. -f1)
           MINOR_NUM=$(echo $PREV_VERSION | cut -d. -f2)
@@ -104,6 +105,8 @@ jobs:
       contents: read
       packages: write
       id-token: write
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -121,16 +124,17 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - id: meta
-        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302
-        with:
-          images: ghcr.io/${{ env.REPO }}
-
-      - uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a
+      # Publish an immutable version tag as well as latest, so consumers can
+      # pin. Previously only :latest was pushed and the computed tags from
+      # docker/metadata-action were discarded.
+      - id: build
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a
         with:
           context: .
           push: true
-          tags: ghcr.io/${{ env.REPO }}:latest
+          tags: |
+            ghcr.io/${{ env.REPO }}:${{ needs.versioning.outputs.version }}
+            ghcr.io/${{ env.REPO }}:latest
           platforms: linux/amd64,linux/arm64
           build-args: |
             VERSION=${{ needs.versioning.outputs.version }}
@@ -139,7 +143,6 @@ jobs:
     needs: [ versioning, docker ]
     runs-on: ubuntu-latest
     permissions:
-      contents: write
       id-token: write
       packages: write
     steps:
@@ -155,15 +158,24 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Wait for image
-        run: |
-          for i in {1..5}; do
-            docker pull ghcr.io/${{ env.REPO }}:latest && break
-            sleep 5
-          done
+      # Sign the digest built by the docker job, not a mutable tag.
+      - name: Sign image
+        run: cosign sign --yes "ghcr.io/${REPO}@${DIGEST}"
+        env:
+          REPO: ${{ env.REPO }}
+          DIGEST: ${{ needs.docker.outputs.digest }}
 
-      - run: cosign sign --yes ghcr.io/${{ env.REPO }}:latest
-      - run: cosign verify --certificate-identity-regexp ".*" --certificate-oidc-issuer-regexp ".*actions.githubusercontent.com.*" ghcr.io/${{ env.REPO }}:latest
+      # Verification is pinned to this repository's release workflow. Accepting
+      # any identity (".*") proved nothing about who signed the image.
+      - name: Verify signature
+        run: |
+          cosign verify \
+            --certificate-identity-regexp "^https://github\.com/${GITHUB_REPOSITORY}/\.github/workflows/release\.yml@refs/" \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+            "ghcr.io/${REPO}@${DIGEST}"
+        env:
+          REPO: ${{ env.REPO }}
+          DIGEST: ${{ needs.docker.outputs.digest }}
 
   sbom:
     needs: [ versioning, release, docker ]
@@ -188,11 +200,14 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - run: docker pull ghcr.io/${{ env.REPO }}:latest
+      - run: docker pull "ghcr.io/${REPO}@${DIGEST}"
+        env:
+          REPO: ${{ env.REPO }}
+          DIGEST: ${{ needs.docker.outputs.digest }}
 
       - uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26
         with:
-          image: ghcr.io/${{ env.REPO }}:latest
+          image: ghcr.io/${{ env.REPO }}@${{ needs.docker.outputs.digest }}
           output-file: skillguard-sbom.spdx
 
       - name: Upload SBOM to Release

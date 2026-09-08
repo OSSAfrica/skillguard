@@ -148,56 +148,110 @@ type FoundFile struct {
 	FileType FileType
 }
 
-func FindSkillFiles(path string) ([]FoundFile, error) {
+// FindSkillFiles locates the Markdown files to scan under path.
+//
+// It returns the files found, warnings for anything that had to be skipped, and
+// an error only when the requested path itself cannot be scanned. A single
+// unreadable directory must not discard the results of an otherwise good scan.
+func FindSkillFiles(path string) ([]FoundFile, []string, error) {
 	path = strings.TrimSpace(path)
 
 	info, err := os.Stat(path)
 	if err != nil {
-		return nil, fmt.Errorf("failed to access path: %w", err)
+		return nil, nil, fmt.Errorf("failed to access path: %w", err)
 	}
 
-	var files []FoundFile
+	if !info.IsDir() {
+		file, ok := classifyFile(path, true)
+		if !ok {
+			return nil, nil, nil
+		}
 
-	if info.IsDir() {
-		err = filepath.Walk(path, func(p string, fi os.FileInfo, err error) error {
-			if err != nil {
-				return err
-			}
-			if fi.IsDir() {
-				return nil
-			}
-			lowerName := strings.ToLower(fi.Name())
-			if strings.HasSuffix(lowerName, ".md") {
-				content, readErr := os.ReadFile(p) // #nosec G304,G122 -- trusted path from filepath.Walk
-				if readErr == nil {
-					isSkillFile := lowerName == "skill.md" || lowerName == "skills.md"
+		return []FoundFile{file}, nil, nil
+	}
 
-					if strings.HasPrefix(strings.TrimSpace(string(content)), "---") {
-						fileType := FileTypeSkill
-						if !isSkillFile {
-							fileType = FileTypeReference
-						}
-						files = append(files, FoundFile{Path: p, FileType: fileType})
-					} else if !isSkillFile {
-						files = append(files, FoundFile{Path: p, FileType: FileTypeReference})
-					}
-				}
-			}
-			return nil
-		})
+	var (
+		files    []FoundFile
+		warnings []string
+	)
+
+	walkSkillDir(path, map[string]bool{}, &files, &warnings)
+
+	return files, warnings, nil
+}
+
+// walkSkillDir descends into dir, following symlinked directories. Skill trees
+// are routinely built from symlinks (~/.claude/skills/<name> pointing elsewhere)
+// and filepath.Walk does not follow them, so those skills were skipped without
+// a word. Directories already visited are skipped, which also breaks cycles.
+func walkSkillDir(dir string, visited map[string]bool, files *[]FoundFile, warnings *[]string) {
+	resolved, err := filepath.EvalSymlinks(dir)
+	if err != nil {
+		*warnings = append(*warnings, fmt.Sprintf("skipped %s: %v", dir, err))
+		return
+	}
+
+	if visited[resolved] {
+		return
+	}
+	visited[resolved] = true
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		*warnings = append(*warnings, fmt.Sprintf("skipped %s: %v", dir, err))
+		return
+	}
+
+	for _, entry := range entries {
+		path := filepath.Join(dir, entry.Name())
+
+		// Stat, not the DirEntry type, so a symlink is classified by its target.
+		info, err := os.Stat(path)
 		if err != nil {
-			return nil, err
+			*warnings = append(*warnings, fmt.Sprintf("skipped %s: %v", path, err))
+			continue
 		}
-	} else {
-		if strings.HasSuffix(strings.ToLower(info.Name()), ".md") {
-			content, err := os.ReadFile(path) // #nosec G304 -- CLI tool reads user-specified paths by design
-			if err == nil {
-				if strings.HasPrefix(strings.TrimSpace(string(content)), "---") {
-					files = []FoundFile{{Path: path, FileType: FileTypeSkill}}
-				}
-			}
+
+		if info.IsDir() {
+			walkSkillDir(path, visited, files, warnings)
+			continue
 		}
+
+		if !strings.HasSuffix(strings.ToLower(entry.Name()), ".md") {
+			continue
+		}
+
+		file, ok := classifyFile(path, false)
+		if !ok {
+			*warnings = append(*warnings, fmt.Sprintf("skipped %s: unreadable", path))
+			continue
+		}
+
+		*files = append(*files, file)
+	}
+}
+
+// classifyFile decides whether a Markdown file is a skill definition or a
+// reference document. A file the user named explicitly is always scanned, with
+// or without frontmatter: skipping it silently reported a pass for a file that
+// was never read.
+func classifyFile(path string, explicit bool) (FoundFile, bool) {
+	if !strings.HasSuffix(strings.ToLower(filepath.Base(path)), ".md") {
+		return FoundFile{}, false
 	}
 
-	return files, nil
+	content, err := os.ReadFile(path) // #nosec G304 -- CLI tool reads user-specified paths by design
+	if err != nil {
+		return FoundFile{}, false
+	}
+
+	name := strings.ToLower(filepath.Base(path))
+	isSkillName := name == "skill.md" || name == "skills.md"
+	hasFrontmatter := strings.HasPrefix(strings.TrimSpace(string(content)), "---")
+
+	if hasFrontmatter && (explicit || isSkillName) {
+		return FoundFile{Path: path, FileType: FileTypeSkill}, true
+	}
+
+	return FoundFile{Path: path, FileType: FileTypeReference}, true
 }

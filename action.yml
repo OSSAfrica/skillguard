@@ -27,6 +27,10 @@ inputs:
     description: 'Show all findings and detailed breakdown'
     required: false
     default: 'false'
+  version:
+    description: 'SkillGuard image tag or digest to run (e.g. v1.2.3, or sha256:...). Pin this for reproducible scans.'
+    required: false
+    default: 'latest'
 
 outputs:
   result:
@@ -57,9 +61,15 @@ runs:
         INPUT_OUTPUT: ${{ inputs.output }}
         INPUT_QUIET: ${{ inputs.quiet }}
         INPUT_VERBOSE: ${{ inputs.verbose }}
+        INPUT_VERSION: ${{ inputs.version }}
       run: |
-        # Pull the SkillGuard Docker image
-        IMAGE="ghcr.io/ossafrica/skillguard:latest"
+        # Pull the SkillGuard image. A digest (sha256:...) pins exactly;
+        # a tag such as v1.2.3 pins to a released version.
+        if [[ "${INPUT_VERSION}" == sha256:* ]]; then
+          IMAGE="ghcr.io/ossafrica/skillguard@${INPUT_VERSION}"
+        else
+          IMAGE="ghcr.io/ossafrica/skillguard:${INPUT_VERSION}"
+        fi
         docker pull "${IMAGE}"
 
         # Create a temporary directory for container output
@@ -73,7 +83,7 @@ runs:
             -v "${GITHUB_WORKSPACE}:/workspace" \
             -v "${TEMP_DIR}:/tmp" \
             -w /workspace \
-            --user root \
+            --user "$(id -u):$(id -g)" \
             "${IMAGE}" \
             scan \
             --path "${INPUT_PATH}" \
@@ -106,7 +116,6 @@ runs:
           # Ensure destination directory exists
           mkdir -p "$(dirname "${GITHUB_WORKSPACE}/${INPUT_OUTPUT}")"
         
-          sudo chmod 644 "${TEMP_DIR}/skillguard-report.json"
           cp "${TEMP_DIR}/skillguard-report.json" "${GITHUB_WORKSPACE}/${INPUT_OUTPUT}"
           REPORT="${GITHUB_WORKSPACE}/${INPUT_OUTPUT}"
           # Check for nulls

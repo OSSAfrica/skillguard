@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
@@ -17,14 +18,25 @@ var rootCmd = &cobra.Command{
 Version: ` + Version + `
 Documentation: https://github.com/OSSAfrica/skillguard`,
 	Version: Version,
+	// Errors and usage are printed by Execute, which also decides the exit
+	// code; without this cobra printed every error a second time and dumped
+	// the usage block after a runtime failure.
+	SilenceErrors: true,
+	SilenceUsage:  true,
 }
 
+// Execute runs the CLI and maps its result to an exit code:
+// 0 success, 1 skills below the threshold, 2 execution error.
 func Execute() {
-	if err := rootCmd.Execute(); err != nil {
-		_, err := fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		if err != nil {
-			return
-		}
-		os.Exit(2)
+	err := rootCmd.Execute()
+	if err == nil {
+		return
 	}
+
+	if errors.Is(err, errSkillsFailed) {
+		os.Exit(1)
+	}
+
+	fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+	os.Exit(2)
 }
