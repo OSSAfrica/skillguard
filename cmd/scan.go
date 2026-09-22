@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -218,9 +219,9 @@ func analyzeFile(scorer *analyzer.Scorer, f parser.FoundFile) (*model.AnalysisRe
 }
 
 func expandPath(path string) string {
-	if len(path) > 1 && path[0] == '~' {
+	if path == "~" || strings.HasPrefix(path, "~/") {
 		if home := homeDir(); home != "" {
-			return home + path[1:]
+			return filepath.Join(home, strings.TrimPrefix(path[1:], "/"))
 		}
 	}
 

@@ -181,11 +181,26 @@ func TestExpandPath(t *testing.T) {
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home)
 
-	if got, want := expandPath("~/skills"), filepath.Join(home, "skills"); got != want {
-		t.Errorf("expandPath(~/skills) = %q, want %q", got, want)
+	tests := []struct {
+		name string
+		path string
+		want string
+	}{
+		{"bare tilde", "~", home},
+		{"home relative path", "~/skills", filepath.Join(home, "skills")},
+		{"named user unchanged", "~alice/skills", "~alice/skills"},
+		{"absolute path unchanged", "/absolute/path", "/absolute/path"},
+		{"relative path unchanged", "skills", "skills"},
+		{"empty path unchanged", "", ""},
 	}
-	if got := expandPath("/absolute/path"); got != "/absolute/path" {
-		t.Errorf("expandPath left an absolute path alone: %q", got)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := expandPath(tt.path)
+			if got != tt.want {
+				t.Errorf("expandPath(%q) = %q, want %q", tt.path, got, tt.want)
+			}
+		})
 	}
 }
 
