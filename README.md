@@ -43,6 +43,37 @@ SkillGuard provides the first line of defense by analyzing skill definitions bef
 - **Multiple output formats** - Colored CLI output and JSON reports
 - **Configurable** - Custom thresholds, paths, and trusted domains
 
+## How It Works
+
+![SkillGuard architecture](docs/images/architecture-diagram.png)
+
+SkillGuard reads skill files and never runs them. A scan goes through four stages:
+
+1. **Discover** - Walks the paths you give it, following symlinked skill directories, and collects every `.md` file.
+   A `SKILL.md` with YAML frontmatter is treated as a skill. Any other Markdown file is treated as a reference document.
+2. **Parse** - Splits each skill into frontmatter metadata (name, description, allowed tools, source, triggers) and its
+   Markdown body.
+3. **Analyze** - Runs pattern-based detectors over the body and metadata: shell execution, credentials, untrusted
+   URLs, obfuscated code, piped installers, hidden characters, prompt injection, and more. Local scripts the skill
+   references are scanned too, but only if they sit inside the skill's own directory.
+4. **Score and report** - Each finding lowers one of five weighted category scores. The overall score is their
+   weighted average, and any critical finding fails the skill outright. Results are shown in the terminal or written
+   as JSON, and the exit code (`0` / `1` / `2`) tells CI whether to pass the build.
+
+### Design Principles
+
+- **Static only** - Skills and their scripts are read, never executed.
+- **Treat the skill as hostile** - Paths and text in a skill come from its author, so the scanner cannot be used to
+  read files outside the skill directory, and it limits how much of a referenced file it reads.
+- **Fail closed on critical risk** - A strong average never hides a critical finding.
+- **Flag commands, not prose** - Detectors look for the imperative or executable form, so documentation *about* a risk
+  is not flagged as the risk itself.
+- **No silent skips** - Anything that could not be scanned is reported as a warning, never passed quietly.
+- **Explainable scores** - Every finding records the exact deduction it caused, and more findings can never raise a
+  score.
+
+See [ARCHITECTURE.md](ARCHITECTURE.md) for a component-by-component walkthrough.
+
 ## Installation
 
 ### Binary (Recommended)
@@ -221,7 +252,7 @@ progressively less, but each one still costs something: adding findings can neve
 
 | Category          | Risk                                | Severity      |
 |-------------------|-------------------------------------|---------------|
-| Shell Execution   | Command invocations, not prose      | High/Critical |
+| Shell Execution   | Command invocations, not prose      | High          |
 | File Access       | File write/delete operations        | High          |
 | Network           | Untrusted external URLs             | Medium        |
 | Credentials       | Secret/credential references        | High          |
@@ -354,6 +385,10 @@ skillguard/
 
 Contributions are welcome. Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on how to contribute to this
 project.
+
+## Architecture
+
+See [ARCHITECTURE.md](ARCHITECTURE.md) for how the scanner is put together and the principles behind it.
 
 ## Development
 
