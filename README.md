@@ -45,7 +45,98 @@ SkillGuard provides the first line of defense by analyzing skill definitions bef
 
 ## How It Works
 
-![SkillGuard architecture](docs/images/architecture-diagram.png)
+```mermaid
+flowchart TD
+
+subgraph group_cli["CLI orchestration"]
+  node_cli_entry["CLI entry<br/>[main.go]"]
+  node_command_dispatcher["Command dispatcher<br/>[root.go]"]
+  node_scan_command["Scan command<br/>[scan.go]"]
+  node_path_resolver["Path resolver<br/>[scan.go]"]
+  node_analysis_orchestrator["File analyzer<br/>[scan.go]"]
+end
+
+subgraph group_input["Input processing"]
+  node_file_discovery["File discovery<br/>[markdown.go]"]
+  node_markdown_parser["Markdown parser<br/>[markdown.go]"]
+  node_reference_extractor["Reference extractor<br/>[scorer.go]"]
+end
+
+subgraph group_analysis["Security analysis"]
+  node_security_scorer["Security scorer<br/>[scorer.go]"]
+  node_risk_detectors["Risk detectors<br/>[scorer.go]"]
+  node_score_calculator["Score calculator<br/>[scorer.go]"]
+  node_result_model["Analysis results<br/>[types.go]"]
+end
+
+subgraph group_output["Results and config"]
+  node_config_manager["Config manager<br/>[config.go]"]
+  node_report_renderer["Report renderer<br/>[scan.go]"]
+  node_json_writer["JSON writer<br/>[scan.go]"]
+  node_exit_status["Exit status<br/>[root.go]"]
+end
+
+node_developer(("Developer"))
+node_ci(("CI pipeline"))
+node_skill_files["Skill files"]
+node_config_file[("Config file")]
+
+node_developer -->|"invokes"| node_cli_entry
+node_ci -.->|"invokes"| node_cli_entry
+node_cli_entry -->|"starts"| node_command_dispatcher
+node_command_dispatcher -->|"dispatches scan"| node_scan_command
+node_command_dispatcher -->|"dispatches config"| node_config_manager
+node_scan_command -->|"loads config"| node_config_manager
+node_config_manager -->|"reads or writes"| node_config_file
+node_scan_command -->|"resolves paths"| node_path_resolver
+node_path_resolver -->|"selects inputs"| node_file_discovery
+node_file_discovery -->|"scans files"| node_skill_files
+node_scan_command -->|"analyzes files"| node_analysis_orchestrator
+node_analysis_orchestrator -->|"parses skills"| node_markdown_parser
+node_analysis_orchestrator -.->|"extracts references"| node_reference_extractor
+node_analysis_orchestrator -->|"analyzes content"| node_security_scorer
+node_reference_extractor -.->|"analyzes references"| node_security_scorer
+node_security_scorer -->|"runs checks"| node_risk_detectors
+node_security_scorer -->|"calculates scores"| node_score_calculator
+node_security_scorer -->|"builds findings"| node_result_model
+node_scan_command -->|"prints report"| node_report_renderer
+node_scan_command -.->|"writes JSON"| node_json_writer
+node_scan_command -->|"checks outcome"| node_exit_status
+node_command_dispatcher -->|"maps result"| node_exit_status
+node_report_renderer -->|"shows results"| node_developer
+node_json_writer -.->|"exports report"| node_developer
+node_exit_status -.->|"returns status"| node_ci
+
+click node_cli_entry "https://github.com/ossafrica/skillguard/blob/main/main.go"
+click node_command_dispatcher "https://github.com/ossafrica/skillguard/blob/main/cmd/root.go"
+click node_scan_command "https://github.com/ossafrica/skillguard/blob/main/cmd/scan.go"
+click node_path_resolver "https://github.com/ossafrica/skillguard/blob/main/cmd/scan.go"
+click node_config_manager "https://github.com/ossafrica/skillguard/blob/main/cmd/config.go"
+click node_file_discovery "https://github.com/ossafrica/skillguard/blob/main/internal/parser/markdown.go"
+click node_markdown_parser "https://github.com/ossafrica/skillguard/blob/main/internal/parser/markdown.go"
+click node_reference_extractor "https://github.com/ossafrica/skillguard/blob/main/internal/analyzer/scorer.go"
+click node_analysis_orchestrator "https://github.com/ossafrica/skillguard/blob/main/cmd/scan.go"
+click node_security_scorer "https://github.com/ossafrica/skillguard/blob/main/internal/analyzer/scorer.go"
+click node_risk_detectors "https://github.com/ossafrica/skillguard/blob/main/internal/analyzer/scorer.go"
+click node_score_calculator "https://github.com/ossafrica/skillguard/blob/main/internal/analyzer/scorer.go"
+click node_result_model "https://github.com/ossafrica/skillguard/blob/main/internal/model/types.go"
+click node_report_renderer "https://github.com/ossafrica/skillguard/blob/main/cmd/scan.go"
+click node_json_writer "https://github.com/ossafrica/skillguard/blob/main/cmd/scan.go"
+click node_exit_status "https://github.com/ossafrica/skillguard/blob/main/cmd/root.go"
+
+classDef toneNeutral fill:#f8fafc,stroke:#334155,stroke-width:1.5px,color:#0f172a
+classDef toneBlue fill:#dbeafe,stroke:#2563eb,stroke-width:1.5px,color:#172554
+classDef toneAmber fill:#fef3c7,stroke:#d97706,stroke-width:1.5px,color:#78350f
+classDef toneMint fill:#dcfce7,stroke:#16a34a,stroke-width:1.5px,color:#14532d
+classDef toneRose fill:#ffe4e6,stroke:#e11d48,stroke-width:1.5px,color:#881337
+classDef toneIndigo fill:#e0e7ff,stroke:#4f46e5,stroke-width:1.5px,color:#312e81
+classDef toneTeal fill:#ccfbf1,stroke:#0f766e,stroke-width:1.5px,color:#134e4a
+class node_cli_entry,node_command_dispatcher,node_scan_command,node_path_resolver,node_analysis_orchestrator toneBlue
+class node_file_discovery,node_markdown_parser,node_reference_extractor,node_config_file toneAmber
+class node_security_scorer,node_risk_detectors,node_score_calculator,node_result_model toneMint
+class node_config_manager,node_report_renderer,node_json_writer,node_exit_status toneRose
+class node_developer,node_ci,node_skill_files toneIndigo
+```
 
 SkillGuard reads skill files and never runs them. A scan goes through four stages:
 
