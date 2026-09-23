@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"skillguard/internal/model"
@@ -181,16 +182,6 @@ func TestExpandPath(t *testing.T) {
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home)
 
-	if os.IsPathSeparator('\\') {
-		t.Run("home backslash relative path", func(t *testing.T) {
-			got := expandPath(`~\skills`)
-			want := filepath.Join(home, "skills")
-			if got != want {
-				t.Errorf("expandPath(%q) = %q, want %q", `~\skills`, got, want)
-			}
-		})
-	}
-
 	tests := []struct {
 		name string
 		path string
@@ -198,14 +189,20 @@ func TestExpandPath(t *testing.T) {
 	}{
 		{"bare tilde", "~", home},
 		{"home relative path", "~/skills", filepath.Join(home, "skills")},
+		{"home backslash relative path", `~\skills`, filepath.Join(home, "skills")},
 		{"named user unchanged", "~alice/skills", "~alice/skills"},
 		{"absolute path unchanged", "/absolute/path", "/absolute/path"},
 		{"relative path unchanged", "skills", "skills"},
+		{"dot relative path unchanged", "./skills", "./skills"},
+		{"nested relative path unchanged", "a/b", "a/b"},
 		{"empty path unchanged", "", ""},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			if tt.path == `~\skills` && runtime.GOOS != "windows" {
+				tt.want = tt.path
+			}
 			got := expandPath(tt.path)
 			if got != tt.want {
 				t.Errorf("expandPath(%q) = %q, want %q", tt.path, got, tt.want)
