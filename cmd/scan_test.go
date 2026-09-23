@@ -181,6 +181,16 @@ func TestExpandPath(t *testing.T) {
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home)
 
+	if os.IsPathSeparator('\\') {
+		t.Run("home backslash relative path", func(t *testing.T) {
+			got := expandPath(`~\skills`)
+			want := filepath.Join(home, "skills")
+			if got != want {
+				t.Errorf("expandPath(%q) = %q, want %q", `~\skills`, got, want)
+			}
+		})
+	}
+
 	tests := []struct {
 		name string
 		path string

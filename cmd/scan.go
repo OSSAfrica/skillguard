@@ -219,9 +219,12 @@ func analyzeFile(scorer *analyzer.Scorer, f parser.FoundFile) (*model.AnalysisRe
 }
 
 func expandPath(path string) string {
-	if path == "~" || strings.HasPrefix(path, "~/") {
-		if home := homeDir(); home != "" {
-			return filepath.Join(home, strings.TrimPrefix(path[1:], "/"))
+	if home := homeDir(); home != "" {
+		if path == "~" {
+			return home
+		}
+		if len(path) > 1 && os.IsPathSeparator(path[1]) {
+			return filepath.Join(home, path[2:])
 		}
 	}
 
