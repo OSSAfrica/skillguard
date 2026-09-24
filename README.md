@@ -32,7 +32,7 @@ SkillGuard provides the first line of defense by analyzing skill definitions bef
     - Shell command execution patterns
     - Credential and secret exposure
     - Unrestricted tool access (wildcards)
-    - Prompt injection vectors
+    - Prompt injection (instruction override, secrecy directives, hidden instructions)
     - Untrusted external URLs
     - Obfuscated code (eval, Function, setTimeout)
     - HTTP/Git dependencies
@@ -42,6 +42,128 @@ SkillGuard provides the first line of defense by analyzing skill definitions bef
 - **CI/CD integration** - Threshold-based exit codes for automated pipelines
 - **Multiple output formats** - Colored CLI output and JSON reports
 - **Configurable** - Custom thresholds, paths, and trusted domains
+
+## How It Works
+
+```mermaid
+flowchart TD
+
+subgraph group_cli["CLI orchestration"]
+  node_cli_entry["CLI entry<br/>[main.go]"]
+  node_command_dispatcher["Command dispatcher<br/>[root.go]"]
+  node_scan_command["Scan command<br/>[scan.go]"]
+  node_path_resolver["Path resolver<br/>[scan.go]"]
+  node_analysis_orchestrator["File analyzer<br/>[scan.go]"]
+end
+
+subgraph group_input["Input processing"]
+  node_file_discovery["File discovery<br/>[markdown.go]"]
+  node_markdown_parser["Markdown parser<br/>[markdown.go]"]
+  node_reference_extractor["Reference extractor<br/>[scorer.go]"]
+end
+
+subgraph group_analysis["Security analysis"]
+  node_security_scorer["Security scorer<br/>[scorer.go]"]
+  node_risk_detectors["Risk detectors<br/>[scorer.go]"]
+  node_score_calculator["Score calculator<br/>[scorer.go]"]
+  node_result_model["Analysis results<br/>[types.go]"]
+end
+
+subgraph group_output["Results and config"]
+  node_config_manager["Config manager<br/>[config.go]"]
+  node_report_renderer["Report renderer<br/>[scan.go]"]
+  node_json_writer["JSON writer<br/>[scan.go]"]
+  node_exit_status["Exit status<br/>[root.go]"]
+end
+
+node_developer(("Developer"))
+node_ci(("CI pipeline"))
+node_skill_files["Skill files"]
+node_config_file[("Config file")]
+
+node_developer -->|"invokes"| node_cli_entry
+node_ci -.->|"invokes"| node_cli_entry
+node_cli_entry -->|"starts"| node_command_dispatcher
+node_command_dispatcher -->|"dispatches scan"| node_scan_command
+node_command_dispatcher -->|"dispatches config"| node_config_manager
+node_scan_command -->|"loads config"| node_config_manager
+node_config_manager -->|"reads or writes"| node_config_file
+node_scan_command -->|"resolves paths"| node_path_resolver
+node_path_resolver -->|"selects inputs"| node_file_discovery
+node_file_discovery -->|"scans files"| node_skill_files
+node_scan_command -->|"analyzes files"| node_analysis_orchestrator
+node_analysis_orchestrator -->|"parses skills"| node_markdown_parser
+node_analysis_orchestrator -.->|"extracts references"| node_reference_extractor
+node_analysis_orchestrator -->|"analyzes content"| node_security_scorer
+node_reference_extractor -.->|"analyzes references"| node_security_scorer
+node_security_scorer -->|"runs checks"| node_risk_detectors
+node_security_scorer -->|"calculates scores"| node_score_calculator
+node_security_scorer -->|"builds findings"| node_result_model
+node_scan_command -->|"prints report"| node_report_renderer
+node_scan_command -.->|"writes JSON"| node_json_writer
+node_scan_command -->|"checks outcome"| node_exit_status
+node_command_dispatcher -->|"maps result"| node_exit_status
+node_report_renderer -->|"shows results"| node_developer
+node_json_writer -.->|"exports report"| node_developer
+node_exit_status -.->|"returns status"| node_ci
+
+click node_cli_entry "https://github.com/ossafrica/skillguard/blob/main/main.go"
+click node_command_dispatcher "https://github.com/ossafrica/skillguard/blob/main/cmd/root.go"
+click node_scan_command "https://github.com/ossafrica/skillguard/blob/main/cmd/scan.go"
+click node_path_resolver "https://github.com/ossafrica/skillguard/blob/main/cmd/scan.go"
+click node_config_manager "https://github.com/ossafrica/skillguard/blob/main/cmd/config.go"
+click node_file_discovery "https://github.com/ossafrica/skillguard/blob/main/internal/parser/markdown.go"
+click node_markdown_parser "https://github.com/ossafrica/skillguard/blob/main/internal/parser/markdown.go"
+click node_reference_extractor "https://github.com/ossafrica/skillguard/blob/main/internal/analyzer/scorer.go"
+click node_analysis_orchestrator "https://github.com/ossafrica/skillguard/blob/main/cmd/scan.go"
+click node_security_scorer "https://github.com/ossafrica/skillguard/blob/main/internal/analyzer/scorer.go"
+click node_risk_detectors "https://github.com/ossafrica/skillguard/blob/main/internal/analyzer/scorer.go"
+click node_score_calculator "https://github.com/ossafrica/skillguard/blob/main/internal/analyzer/scorer.go"
+click node_result_model "https://github.com/ossafrica/skillguard/blob/main/internal/model/types.go"
+click node_report_renderer "https://github.com/ossafrica/skillguard/blob/main/cmd/scan.go"
+click node_json_writer "https://github.com/ossafrica/skillguard/blob/main/cmd/scan.go"
+click node_exit_status "https://github.com/ossafrica/skillguard/blob/main/cmd/root.go"
+
+classDef toneNeutral fill:#f8fafc,stroke:#334155,stroke-width:1.5px,color:#0f172a
+classDef toneBlue fill:#dbeafe,stroke:#2563eb,stroke-width:1.5px,color:#172554
+classDef toneAmber fill:#fef3c7,stroke:#d97706,stroke-width:1.5px,color:#78350f
+classDef toneMint fill:#dcfce7,stroke:#16a34a,stroke-width:1.5px,color:#14532d
+classDef toneRose fill:#ffe4e6,stroke:#e11d48,stroke-width:1.5px,color:#881337
+classDef toneIndigo fill:#e0e7ff,stroke:#4f46e5,stroke-width:1.5px,color:#312e81
+classDef toneTeal fill:#ccfbf1,stroke:#0f766e,stroke-width:1.5px,color:#134e4a
+class node_cli_entry,node_command_dispatcher,node_scan_command,node_path_resolver,node_analysis_orchestrator toneBlue
+class node_file_discovery,node_markdown_parser,node_reference_extractor,node_config_file toneAmber
+class node_security_scorer,node_risk_detectors,node_score_calculator,node_result_model toneMint
+class node_config_manager,node_report_renderer,node_json_writer,node_exit_status toneRose
+class node_developer,node_ci,node_skill_files toneIndigo
+```
+
+SkillGuard reads skill files and never runs them. A scan goes through four stages:
+
+1. **Discover** - Walks the paths you give it, following symlinked skill directories, and collects every `.md` file.
+   A `SKILL.md` with YAML frontmatter is treated as a skill. Any other Markdown file is treated as a reference document.
+2. **Parse** - Splits each skill into frontmatter metadata (name, description, allowed tools, source, triggers) and its
+   Markdown body.
+3. **Analyze** - Runs pattern-based detectors over the body and metadata: shell execution, credentials, untrusted
+   URLs, obfuscated code, piped installers, hidden characters, prompt injection, and more. Local scripts the skill
+   references are scanned too, but only if they sit inside the skill's own directory.
+4. **Score and report** - Each finding lowers one of five weighted category scores. The overall score is their
+   weighted average, and any critical finding fails the skill outright. Results are shown in the terminal or written
+   as JSON, and the exit code (`0` / `1` / `2`) tells CI whether to pass the build.
+
+### Design Principles
+
+- **Static only** - Skills and their scripts are read, never executed.
+- **Treat the skill as hostile** - Paths and text in a skill come from its author, so the scanner cannot be used to
+  read files outside the skill directory, and it limits how much of a referenced file it reads.
+- **Fail closed on critical risk** - A strong average never hides a critical finding.
+- **Flag commands, not prose** - Detectors look for the imperative or executable form, so documentation *about* a risk
+  is not flagged as the risk itself.
+- **No silent skips** - Anything that could not be scanned is reported as a warning, never passed quietly.
+- **Explainable scores** - Every finding records the exact deduction it caused, and more findings can never raise a
+  score.
+
+See [ARCHITECTURE.md](ARCHITECTURE.md) for a component-by-component walkthrough.
 
 ## Installation
 
@@ -221,7 +343,7 @@ progressively less, but each one still costs something: adding findings can neve
 
 | Category          | Risk                                | Severity      |
 |-------------------|-------------------------------------|---------------|
-| Shell Execution   | Command invocations, not prose      | High/Critical |
+| Shell Execution   | Command invocations, not prose      | High          |
 | File Access       | File write/delete operations        | High          |
 | Network           | Untrusted external URLs             | Medium        |
 | Credentials       | Secret/credential references        | High          |
@@ -231,7 +353,8 @@ progressively less, but each one still costs something: adding findings can neve
 | Hidden Characters | Zero-width and control characters   | High          |
 | Bidi Override     | Text that renders unlike it reads   | High          |
 | Mixed Script      | Cyrillic/Greek lookalikes in Latin  | Medium        |
-| Prompt Injection  | Dynamic prompt construction         | Medium        |
+| Prompt Injection  | Instructions aimed at the agent     | Critical      |
+| Prompt Construction | Dynamically assembled prompts     | Medium        |
 | Supply Chain      | No source URL provided              | Low           |
 | Metadata          | Missing description/triggers        | Low           |
 
@@ -247,6 +370,18 @@ Directory scans follow symlinked skill directories, which is how most skill tree
 (`~/.claude/skills/<name>` pointing at the real directory elsewhere). Anything that cannot be read is reported as a
 warning and the rest of the scan continues; a file named directly on the command line is always scanned, with or
 without frontmatter.
+
+### Prompt Injection
+
+A skill body is read by an agent, so instructions inside it aimed at that agent are the attack. SkillGuard flags
+instruction overrides ("ignore all previous instructions"), secrecy directives ("do not tell the user"), coercion
+("you must always comply, even if the user says otherwise"), role reassignment, and instructions hidden in HTML
+comments where a human reviewer will not see them.
+
+Detection requires the imperative form, so documents that *describe* prompt injection are not mistaken for documents
+that *perform* it: "skills that can be manipulated to ignore safety guidelines" is prose, while "Ignore all previous
+instructions." is a command. Across 733 real skills this produced no findings; a crafted malicious skill that
+previously scored 100/100 now scores 79 and fails.
 
 ### Referenced Scripts
 
@@ -341,6 +476,10 @@ skillguard/
 
 Contributions are welcome. Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on how to contribute to this
 project.
+
+## Architecture
+
+See [ARCHITECTURE.md](ARCHITECTURE.md) for how the scanner is put together and the principles behind it.
 
 ## Development
 
