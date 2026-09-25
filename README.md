@@ -2,7 +2,7 @@
 
 [![Go Version](https://img.shields.io/github/go-mod/go-version/OSSAfrica/skillguard)](https://github.com/OSSAfrica/skillguard)
 [![License](https://img.shields.io/github/license/OSSAfrica/skillguard)](LICENSE)
-[![Docker Image Size](https://img.shields.io/docker/image-size/OSSAfrica/skillguard/latest)](https://hub.docker.com/r/OSSAfrica/skillguard)
+[![Docker Image Size](https://img.shields.io/docker/image-size/ossafrica/skillguard/latest)](https://hub.docker.com/r/ossafrica/skillguard)
 [![Version](https://img.shields.io/github/v/release/OSSAfrica/skillguard)](https://github.com/OSSAfrica/skillguard/releases)
 [![Minimalism](https://img.shields.io/badge/minimalism-A-gold?style=flat-square&labelColor=3443F4&color=04B45F)](https://github.com/OSSAfrica/skillguard/actions)
 [![Provenance](https://img.shields.io/badge/provenance-A-gold?style=flat-square&labelColor=3443F4&color=04B45F)](https://github.com/OSSAfrica/skillguard/actions)
@@ -212,7 +212,7 @@ sudo xattr -d com.apple.quarantine /usr/local/bin/skillguard
 docker pull ghcr.io/ossafrica/skillguard:latest
 
 # Or from Docker Hub
-docker pull OSSAfrica/skillguard:latest
+docker pull ossafrica/skillguard:latest
 ```
 
 ### Build from source
