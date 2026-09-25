@@ -87,17 +87,18 @@ func runScan(cmd *cobra.Command, args []string) error {
 	}
 
 	if outputFile != "" {
-		if format == "json" {
+		switch format {
+		case "json":
 			if err := writeJSONReport(outputFile, report); err != nil {
 				return fmt.Errorf("failed to write report: %w", err)
 			}
 			color.Green("JSON report written to: %s", outputFile)
-		} else if format == "markdown" {
+		case "markdown":
 			if err := writeMarkdownReport(outputFile, report); err != nil {
 				return fmt.Errorf("failed to write markdown report: %w", err)
 			}
 			color.Green("Markdown report written to: %s", outputFile)
-		} else {
+		default:
 			// Default to JSON for backward compatibility
 			if err := writeJSONReport(outputFile, report); err != nil {
 				return fmt.Errorf("failed to write report: %w", err)
@@ -107,15 +108,16 @@ func runScan(cmd *cobra.Command, args []string) error {
 	}
 
 	if !quietMode {
-		if format == "json" {
+		switch format {
+		case "json":
 			if outputFile == "" {
 				if err := writeJSONReport("-", report); err != nil {
 					return fmt.Errorf("failed to write JSON report: %w", err)
 				}
 			}
-		} else if format == "markdown" {
+		case "markdown":
 			printMarkdownReport(report)
-		} else {
+		default:
 			printColoredReport(report)
 		}
 	}
@@ -434,12 +436,12 @@ func writeJSONReport(path string, report *model.ScanReport) error {
 func writeMarkdownReport(path string, report *model.ScanReport) error {
 	var builder strings.Builder
 	
-	builder.WriteString("# SkillGuard Security Scan Report\n\n")
-	builder.WriteString(fmt.Sprintf("**Scan Time:** %s  \n", report.ScanTime.Format("2006-01-02 15:04:05 MST")))
-	builder.WriteString(fmt.Sprintf("**Total Skills:** %d  \n", report.TotalSkills))
-	builder.WriteString(fmt.Sprintf("**Passed:** %d  \n", report.Passed))
-	builder.WriteString(fmt.Sprintf("**Failed:** %d  \n", report.Failed))
-	builder.WriteString(fmt.Sprintf("**Threshold:** %d/100  \n\n", report.Threshold))
+	fmt.Fprintf(&builder, "# SkillGuard Security Scan Report\n\n")
+	fmt.Fprintf(&builder, "**Scan Time:** %s  \n", report.ScanTime.Format("2006-01-02 15:04:05 MST"))
+	fmt.Fprintf(&builder, "**Total Skills:** %d  \n", report.TotalSkills)
+	fmt.Fprintf(&builder, "**Passed:** %d  \n", report.Passed)
+	fmt.Fprintf(&builder, "**Failed:** %d  \n", report.Failed)
+	fmt.Fprintf(&builder, "**Threshold:** %d/100  \n\n", report.Threshold)
 	
 	builder.WriteString("## Results Summary\n\n")
 	builder.WriteString("| Skill | Score | Pass/Fail | Critical Count |\n")
@@ -450,8 +452,8 @@ func writeMarkdownReport(path string, report *model.ScanReport) error {
 		if result.Passed {
 			status = "✅ PASS"
 		}
-		builder.WriteString(fmt.Sprintf("| %s | %d/100 | %s | %d |\n", 
-			result.SkillName, result.OverallScore, status, result.CriticalCount))
+		fmt.Fprintf(&builder, "| %s | %d/100 | %s | %d |\n", 
+			result.SkillName, result.OverallScore, status, result.CriticalCount)
 	}
 	
 	builder.WriteString("\n## Detailed Results\n\n")
@@ -462,11 +464,11 @@ func writeMarkdownReport(path string, report *model.ScanReport) error {
 			status = "✅ PASSED"
 		}
 		
-		builder.WriteString(fmt.Sprintf("### %s - %s (Score: %d/100)\n\n", 
-			result.SkillName, status, result.OverallScore))
+		fmt.Fprintf(&builder, "### %s - %s (Score: %d/100)\n\n", 
+			result.SkillName, status, result.OverallScore)
 		
-		builder.WriteString(fmt.Sprintf("- **File:** %s  \n", result.FilePath))
-		builder.WriteString(fmt.Sprintf("- **Critical Findings:** %d  \n", result.CriticalCount))
+		fmt.Fprintf(&builder, "- **File:** %s  \n", result.FilePath)
+		fmt.Fprintf(&builder, "- **Critical Findings:** %d  \n", result.CriticalCount)
 		
 		if result.IsReference {
 			builder.WriteString("- **Type:** Reference Document  \n")
@@ -481,9 +483,9 @@ func writeMarkdownReport(path string, report *model.ScanReport) error {
 				} else if cs.Score < 80 {
 					scoreStatus = "🟡"
 				}
-				builder.WriteString(fmt.Sprintf("- %s **%s:** %d/100", scoreStatus, cs.Category, cs.Score))
+				fmt.Fprintf(&builder, "- %s **%s:** %d/100", scoreStatus, cs.Category, cs.Score)
 				if cs.Findings > 0 {
-					builder.WriteString(fmt.Sprintf(" (%d findings)", cs.Findings))
+					fmt.Fprintf(&builder, " (%d findings)", cs.Findings)
 				}
 				builder.WriteString("  \n")
 			}
@@ -503,9 +505,9 @@ func writeMarkdownReport(path string, report *model.ScanReport) error {
 				case model.SeverityLow:
 					severityIcon = "🔵"
 				}
-				builder.WriteString(fmt.Sprintf("- %s **%s:** %s", severityIcon, f.Category, f.Description))
+				fmt.Fprintf(&builder, "- %s **%s:** %s", severityIcon, f.Category, f.Description)
 				if f.Deduction > 0 {
-					builder.WriteString(fmt.Sprintf(" (-%d)", f.Deduction))
+					fmt.Fprintf(&builder, " (-%d)", f.Deduction)
 				}
 				builder.WriteString("  \n")
 			}
