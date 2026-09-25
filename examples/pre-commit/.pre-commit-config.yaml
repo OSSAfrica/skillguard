@@ -1,0 +1,12 @@
+# Pre-commit configuration for SkillGuard security scanning
+# Add this file to your repository as .pre-commit-config.yaml
+
+repos:
+  - repo: https://github.com/OSSAfrica/skillguard
+    rev: v1.0.0  # Replace with the latest release tag
+    hooks:
+      - id: skillguard
+        # Optional: customize threshold
+        args: ["scan", "--path", ".", "--threshold", "70"]
+        # Optional: scan only changed .md files
+        # args: ["scan", "--path"]  # Will use changed files automatically
