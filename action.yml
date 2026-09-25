@@ -127,12 +127,41 @@ runs:
           echo "passed_count=${PASSED}" >> "${GITHUB_OUTPUT}"
           echo "failed_count=${FAILED}" >> "${GITHUB_OUTPUT}"
           echo "report_path=${INPUT_OUTPUT}" >> "${GITHUB_OUTPUT}"
+          
+          # Generate GitHub job summary markdown table
+          if [[ -f "${TEMP_DIR}/skillguard-report.json" ]]; then
+            echo "## SkillGuard Security Scan Results" >> "${GITHUB_STEP_SUMMARY}"
+            echo "" >> "${GITHUB_STEP_SUMMARY}"
+            echo "| Skill | Score | Pass/Fail | Critical Count |" >> "${GITHUB_STEP_SUMMARY}"
+            echo "|-------|-------|-----------|----------------|" >> "${GITHUB_STEP_SUMMARY}"
+            
+            # Extract each skill result and format as markdown table row
+            jq -r '.results[] | "| \(.skill_name) | \(.overall_score)/100 | \(if .passed then "✅ PASS" else "❌ FAIL" end) | \(.critical_count) |"' "${TEMP_DIR}/skillguard-report.json" >> "${GITHUB_STEP_SUMMARY}" 2>/dev/null || true
+            
+            echo "" >> "${GITHUB_STEP_SUMMARY}"
+            echo "**Summary:** ${PASSED} passed, ${FAILED} failed out of ${TOTAL} total skills (threshold: ${INPUT_THRESHOLD})" >> "${GITHUB_STEP_SUMMARY}"
+            
+            if [[ ${FAILED} -gt 0 ]]; then
+              echo "" >> "${GITHUB_STEP_SUMMARY}"
+              echo "### Failed Skills Details" >> "${GITHUB_STEP_SUMMARY}"
+              jq -r '.results[] | select(.passed == false) | "- **\(.skill_name)** (Score: \(.overall_score)/100, Critical: \(.critical_count), File: \(.file_path))"' "${TEMP_DIR}/skillguard-report.json" >> "${GITHUB_STEP_SUMMARY}" 2>/dev/null || true
+            fi
+          fi
         else
           # Set defaults
           echo "total_skills=0" >> "${GITHUB_OUTPUT}"
           echo "passed_count=0" >> "${GITHUB_OUTPUT}"
           echo "failed_count=0" >> "${GITHUB_OUTPUT}"
           echo "report_path=" >> "${GITHUB_OUTPUT}"
+          
+          # Write basic summary when no output file specified
+          echo "## SkillGuard Security Scan Results" >> "${GITHUB_STEP_SUMMARY}"
+          echo "" >> "${GITHUB_STEP_SUMMARY}"
+          if [[ ${EXIT_CODE} -eq 0 ]]; then
+            echo "✅ **Scan Passed** - All skills meet the threshold of ${INPUT_THRESHOLD}" >> "${GITHUB_STEP_SUMMARY}"
+          else
+            echo "❌ **Scan Failed** - One or more skills below threshold of ${INPUT_THRESHOLD}" >> "${GITHUB_STEP_SUMMARY}"
+          fi
         fi
         
         # Clean up

@@ -22,6 +22,7 @@ var (
 	outputFile string
 	quietMode  bool
 	verbose    bool
+	format     string
 )
 
 var scanCmd = &cobra.Command{
@@ -42,6 +43,8 @@ func init() {
 		"Minimal output - just pass/fail status")
 	scanCmd.Flags().BoolVarP(&verbose, "verbose", "v", false,
 		"Show all findings and detailed breakdown")
+	scanCmd.Flags().StringVarP(&format, "format", "f", "text",
+		"Output format: text, json, or markdown")
 
 	rootCmd.AddCommand(scanCmd)
 }
@@ -84,15 +87,37 @@ func runScan(cmd *cobra.Command, args []string) error {
 	}
 
 	if outputFile != "" {
-		if err := writeJSONReport(outputFile, report); err != nil {
-			return fmt.Errorf("failed to write report: %w", err)
+		if format == "json" {
+			if err := writeJSONReport(outputFile, report); err != nil {
+				return fmt.Errorf("failed to write report: %w", err)
+			}
+			color.Green("JSON report written to: %s", outputFile)
+		} else if format == "markdown" {
+			if err := writeMarkdownReport(outputFile, report); err != nil {
+				return fmt.Errorf("failed to write markdown report: %w", err)
+			}
+			color.Green("Markdown report written to: %s", outputFile)
+		} else {
+			// Default to JSON for backward compatibility
+			if err := writeJSONReport(outputFile, report); err != nil {
+				return fmt.Errorf("failed to write report: %w", err)
+			}
+			color.Green("Report written to: %s", outputFile)
 		}
-
-		color.Green("Report written to: %s", outputFile)
 	}
 
 	if !quietMode {
-		printColoredReport(report)
+		if format == "json" {
+			if outputFile == "" {
+				if err := writeJSONReport("-", report); err != nil {
+					return fmt.Errorf("failed to write JSON report: %w", err)
+				}
+			}
+		} else if format == "markdown" {
+			printMarkdownReport(report)
+		} else {
+			printColoredReport(report)
+		}
 	}
 
 	return scanOutcome(report)
@@ -404,4 +429,116 @@ func writeJSONReport(path string, report *model.ScanReport) error {
 		return err
 	}
 	return os.WriteFile(path, data, 0600)
+}
+
+func writeMarkdownReport(path string, report *model.ScanReport) error {
+	var builder strings.Builder
+	
+	builder.WriteString("# SkillGuard Security Scan Report\n\n")
+	builder.WriteString(fmt.Sprintf("**Scan Time:** %s  \n", report.ScanTime.Format("2006-01-02 15:04:05 MST")))
+	builder.WriteString(fmt.Sprintf("**Total Skills:** %d  \n", report.TotalSkills))
+	builder.WriteString(fmt.Sprintf("**Passed:** %d  \n", report.Passed))
+	builder.WriteString(fmt.Sprintf("**Failed:** %d  \n", report.Failed))
+	builder.WriteString(fmt.Sprintf("**Threshold:** %d/100  \n\n", report.Threshold))
+	
+	builder.WriteString("## Results Summary\n\n")
+	builder.WriteString("| Skill | Score | Pass/Fail | Critical Count |\n")
+	builder.WriteString("|-------|-------|-----------|----------------|\n")
+	
+	for _, result := range report.Results {
+		status := "❌ FAIL"
+		if result.Passed {
+			status = "✅ PASS"
+		}
+		builder.WriteString(fmt.Sprintf("| %s | %d/100 | %s | %d |\n", 
+			result.SkillName, result.OverallScore, status, result.CriticalCount))
+	}
+	
+	builder.WriteString("\n## Detailed Results\n\n")
+	
+	for _, result := range report.Results {
+		status := "❌ FAILED"
+		if result.Passed {
+			status = "✅ PASSED"
+		}
+		
+		builder.WriteString(fmt.Sprintf("### %s - %s (Score: %d/100)\n\n", 
+			result.SkillName, status, result.OverallScore))
+		
+		builder.WriteString(fmt.Sprintf("- **File:** %s  \n", result.FilePath))
+		builder.WriteString(fmt.Sprintf("- **Critical Findings:** %d  \n", result.CriticalCount))
+		
+		if result.IsReference {
+			builder.WriteString("- **Type:** Reference Document  \n")
+		}
+		
+		if len(result.CategoryScores) > 0 {
+			builder.WriteString("\n**Category Scores:**  \n")
+			for _, cs := range result.CategoryScores {
+				scoreStatus := "🟢"
+				if cs.Score < 60 {
+					scoreStatus = "🔴"
+				} else if cs.Score < 80 {
+					scoreStatus = "🟡"
+				}
+				builder.WriteString(fmt.Sprintf("- %s **%s:** %d/100", scoreStatus, cs.Category, cs.Score))
+				if cs.Findings > 0 {
+					builder.WriteString(fmt.Sprintf(" (%d findings)", cs.Findings))
+				}
+				builder.WriteString("  \n")
+			}
+		}
+		
+		if len(result.Findings) > 0 {
+			builder.WriteString("\n**Findings:**  \n")
+			for _, f := range result.Findings {
+				severityIcon := "🔴"
+				switch f.Severity {
+				case model.SeverityCritical:
+					severityIcon = "🔥"
+				case model.SeverityHigh:
+					severityIcon = "🔴"
+				case model.SeverityMedium:
+					severityIcon = "🟡"
+				case model.SeverityLow:
+					severityIcon = "🔵"
+				}
+				builder.WriteString(fmt.Sprintf("- %s **%s:** %s", severityIcon, f.Category, f.Description))
+				if f.Deduction > 0 {
+					builder.WriteString(fmt.Sprintf(" (-%d)", f.Deduction))
+				}
+				builder.WriteString("  \n")
+			}
+		}
+		
+		builder.WriteString("\n---\n\n")
+	}
+	
+	return os.WriteFile(path, []byte(builder.String()), 0600)
+}
+
+func printMarkdownReport(report *model.ScanReport) {
+	fmt.Println("# SkillGuard Security Scan Report")
+	fmt.Println()
+	fmt.Printf("**Scan Time:** %s  \n", report.ScanTime.Format("2006-01-02 15:04:05 MST"))
+	fmt.Printf("**Total Skills:** %d  \n", report.TotalSkills)
+	fmt.Printf("**Passed:** %d  \n", report.Passed)
+	fmt.Printf("**Failed:** %d  \n", report.Failed)
+	fmt.Printf("**Threshold:** %d/100  \n\n", report.Threshold)
+	
+	fmt.Println("## Results Summary")
+	fmt.Println()
+	fmt.Println("| Skill | Score | Pass/Fail | Critical Count |")
+	fmt.Println("|-------|-------|-----------|----------------|")
+	
+	for _, result := range report.Results {
+		status := "❌ FAIL"
+		if result.Passed {
+			status = "✅ PASS"
+		}
+		fmt.Printf("| %s | %d/100 | %s | %d |\n", 
+			result.SkillName, result.OverallScore, status, result.CriticalCount)
+	}
+	
+	fmt.Println()
 }
