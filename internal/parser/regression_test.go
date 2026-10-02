@@ -161,3 +161,24 @@ func writeFile(t *testing.T, path, content string) {
 		t.Fatal(err)
 	}
 }
+
+func TestSkillFileWithLeadingBOM(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "SKILL.md")
+	writeFile(t, path, "\ufeff---\nname: bom\ndescription: example\n---\nhello\n")
+
+	files, _, err := FindSkillFiles(root)
+	if err != nil || len(files) != 1 || files[0].FileType != FileTypeSkill {
+		t.Fatalf("expected a skill file, got files=%+v, err=%v", files, err)
+	}
+	metadata, body, err := ParseSkillFile(path)
+	if err != nil || metadata.Name != "bom" || body != "hello" {
+		t.Fatalf("expected parsed skill without leading BOM, got metadata=%+v, body=%q, err=%v", metadata, body, err)
+	}
+
+	writeFile(t, path, "---\nname: bom\n---\nhello\ufeffworld\n")
+	_, body, err = ParseSkillFile(path)
+	if err != nil || !strings.Contains(body, "\ufeff") {
+		t.Fatalf("BOM inside the body must remain detectable, got body=%q, err=%v", body, err)
+	}
+}
