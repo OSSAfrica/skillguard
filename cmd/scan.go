@@ -111,9 +111,12 @@ func runScan(cmd *cobra.Command, args []string) error {
 		switch format {
 		case "json":
 			if outputFile == "" {
-				if err := writeJSONReport("-", report); err != nil {
-					return fmt.Errorf("failed to write JSON report: %w", err)
+				// Write JSON to stdout
+				data, err := json.MarshalIndent(report, "", "  ")
+				if err != nil {
+					return fmt.Errorf("failed to marshal JSON: %w", err)
 				}
+				fmt.Println(string(data))
 			}
 		case "markdown":
 			printMarkdownReport(report)

@@ -3,10 +3,10 @@
 
 repos:
   - repo: https://github.com/OSSAfrica/skillguard
-    rev: v1.0.0  # Replace with the latest release tag
+    rev: v0.7.2  # Replace with the latest release tag
     hooks:
       - id: skillguard
         # Optional: customize threshold
-        args: ["scan", "--path", ".", "--threshold", "70"]
-        # Optional: scan only changed .md files
-        # args: ["scan", "--path"]  # Will use changed files automatically
+        args: ["scan", "--threshold", "70"]
+        # Optional: to scan specific directory instead of changed files
+        # args: ["scan", "--path", "./skills", "--threshold", "70"]
