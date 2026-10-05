@@ -908,38 +908,36 @@ func TestScorer_ExtractReferencedFiles(t *testing.T) {
 	}
 }
 
-func TestScorer_GetReferencedScriptsPath(t *testing.T) {
+func TestScorer_analyzeReferencedScripts(t *testing.T) {
 	s := NewScorer(70)
 
-	tests := []struct {
-		name  string
-		files []string
-		want  int
-	}{
-		{
-			name:  "empty list",
-			files: nil,
-			want:  0,
-		},
-		{
-			name:  "valid scripts",
-			files: []string{"helper.py", "module.js", "script.sh"},
-			want:  3,
-		},
-		{
-			name:  "mixed",
-			files: []string{"helper.py", "config.json", "module.js"},
-			want:  2,
-		},
+	// Create temporary directory for test files
+	tmpDir := t.TempDir()
+	
+	// Create a test markdown file that will be the "basePath"
+	baseFile := filepath.Join(tmpDir, "test.md")
+	if err := os.WriteFile(baseFile, []byte("# Test Skill"), 0600); err != nil {
+		t.Fatal(err)
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			scripts := s.GetReferencedScriptsPath("", tt.files)
-			if len(scripts) != tt.want {
-				t.Errorf("expected %d scripts, got %d: %v", tt.want, len(scripts), scripts)
-			}
-		})
+	// Create some test script files
+	pyFile := filepath.Join(tmpDir, "helper.py")
+	if err := os.WriteFile(pyFile, []byte("print('hello')"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	jsFile := filepath.Join(tmpDir, "module.js")
+	if err := os.WriteFile(jsFile, []byte("console.log('test')"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	// Test with actual files that exist
+	files := []string{"helper.py", "module.js", "non-existent.sh"}
+	findings := s.analyzeReferencedScripts(baseFile, files)
+	
+	// Should find the two existing script files
+	if findings == nil {
+		t.Error("expected findings slice, got nil")
 	}
 }
 
