@@ -289,6 +289,7 @@ Scan multiple paths (comma-separated) and handle errors gracefully:
 | `--output`    | `-o`  | Output JSON report to file                               | (none)             |
 | `--quiet`     | `-q`  | Minimal output - just pass/fail status                   | `false`            |
 | `--verbose`   | `-v`  | Show all findings and detailed breakdown                 | `false`            |
+| `--format`    | `-f`  | Output format: text, json, or markdown                  | `text`             |
 
 ### Exit Codes
 
@@ -434,6 +435,106 @@ Copy the appropriate example to your skill repository:
 | GitHub Actions | `examples/github-actions/skill-scan.yml` |
 | GitLab CI      | `examples/gitlab-ci/.gitlab-ci.yml`      |
 | Docker Compose | `examples/docker/docker-compose.yml`     |
+| Pre-commit     | `examples/pre-commit/.pre-commit-config.yaml` |
+
+## GitHub Action Job Summary
+
+SkillGuard's GitHub Action now automatically generates a markdown table summary that appears on the Action run page, making it easy to see scan results without digging through logs.
+
+### Features:
+- **Automatic Markdown Table**: Shows skill names, scores, pass/fail status, and critical counts
+- **Failed Skills Details**: Lists details for any failed skills
+- **Clean Integration**: Appears in the "Summary" tab of GitHub Actions
+
+The summary is generated automatically when the Action runs with the `output` parameter. Example output in GitHub Actions:
+
+### Usage:
+```yaml
+- name: Scan AI Skills
+  uses: ossafrica/skillguard@v1
+  with:
+    path: './skills'
+    threshold: 70
+    output: 'skillguard-report.json'  # Required for summary generation
+```
+
+## Pre-commit Integration
+
+SkillGuard can be used as a [pre-commit](https://pre-commit.com/) hook to automatically scan skill definitions before commits, catching security issues early in the development workflow.
+
+### Features:
+- **Automatic Scanning**: Runs on changed `.md` files before commits
+- **Configurable Threshold**: Set your own passing score
+- **Block Unsafe Commits**: Prevents commits with vulnerable skills
+
+### Quick Setup:
+
+1. Install pre-commit:
+   ```bash
+   pip install pre-commit
+   ```
+
+2. Add to `.pre-commit-config.yaml`:
+   ```yaml
+   repos:
+     - repo: https://github.com/OSSAfrica/skillguard
+       rev: v1.0.0  # Use latest release tag
+       hooks:
+         - id: skillguard
+           args: ["scan", "--path", ".", "--threshold", "70"]
+   ```
+
+3. Install the hook:
+   ```bash
+   pre-commit install
+   ```
+
+### Advanced Configuration:
+
+```yaml
+repos:
+  - repo: https://github.com/OSSAfrica/skillguard
+    rev: v1.0.0
+    hooks:
+      - id: skillguard
+        # Scan only changed .md files for speed
+        args: ["scan", "--path"]
+        files: \.md$
+        # Custom threshold
+        # args: ["scan", "--path", ".", "--threshold", "80"]
+```
+
+### Testing Locally:
+```bash
+# Test against this repository
+pre-commit try-repo https://github.com/OSSAfrica/skillguard
+
+# Or test with cloned repo
+pre-commit try-repo .
+```
+
+See the full example in [`examples/pre-commit/`](examples/pre-commit/).
+
+## CLI Markdown Output Format
+
+SkillGuard now supports markdown output format for better integration with documentation and CI systems.
+
+### Usage:
+```bash
+# Generate markdown report
+skillguard scan --format markdown --output report.md
+
+# Pipe markdown to stdout
+skillguard scan --format markdown
+
+# Use in CI pipelines
+skillguard scan --format markdown --output $GITHUB_STEP_SUMMARY
+```
+
+### Format Options:
+- `text`: Colored terminal output (default)
+- `json`: JSON report for programmatic use
+- `markdown`: Markdown formatted report for documentation and GitHub summaries
 
 ## Roadmap
 
