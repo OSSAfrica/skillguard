@@ -198,6 +198,9 @@ var (
 
 	// scriptExts is the set of referenced file types SkillGuard follows and scans.
 	scriptExts = `(?:py|js|ts|sh|rb|go|rs)`
+	
+	// scriptExtensions is the single source of truth for script file extensions
+	scriptExtensions = []string{".py", ".js", ".ts", ".sh", ".rb", ".go", ".rs"}
 
 	// Every pattern must expose the referenced path as the named group "path";
 	// extractReferencedFiles reads that group by name, never by position.
@@ -879,11 +882,17 @@ func detectMixedScript(body string) (int, bool) {
 	return confusable, share < maxConfusableShare
 }
 
-func (s *Scorer) GetReferencedScriptsPath(basePath string, files []string) []string {
+// getReferencedScripts filters files to only include recognized script extensions.
+func (s *Scorer) getReferencedScripts(files []string) []string {
 	var scripts []string
+	extSet := make(map[string]bool)
+	for _, ext := range scriptExtensions {
+		extSet[ext] = true
+	}
+	
 	for _, f := range files {
 		ext := strings.ToLower(filepath.Ext(f))
-		if ext == ".py" || ext == ".js" || ext == ".ts" || ext == ".sh" || ext == ".rb" || ext == ".go" || ext == ".rs" {
+		if extSet[ext] {
 			scripts = append(scripts, f)
 		}
 	}
@@ -901,7 +910,7 @@ func (s *Scorer) analyzeReferencedScripts(basePath string, files []string) []mod
 	var findings []model.Finding
 
 	baseDir := filepath.Dir(basePath)
-	scriptFiles := s.GetReferencedScriptsPath(basePath, files)
+	scriptFiles := s.getReferencedScripts(files)
 
 	for _, scriptFile := range scriptFiles {
 		scriptPath, ok := resolveWithin(baseDir, scriptFile)
