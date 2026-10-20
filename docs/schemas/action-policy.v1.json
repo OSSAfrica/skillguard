@@ -1,0 +1,197 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/OSSAfrica/skillguard/docs/schemas/action-policy.v1.json",
+  "title": "SkillGuard action-policy v1",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "id": {
+      "type": "string"
+    },
+    "version": {
+      "type": "string"
+    },
+    "max_age_seconds": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 300
+    },
+    "isolated_profiles": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 32
+    },
+    "reviewed_actions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "subject_fingerprint": {
+            "type": "string",
+            "pattern": "^sha256:[a-f0-9]{64}$"
+          },
+          "context_fingerprint": {
+            "type": "string",
+            "pattern": "^sha256:[a-f0-9]{64}$"
+          },
+          "review_id": {
+            "type": "string"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "accept_mutable_artifacts": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "subject_fingerprint",
+          "context_fingerprint",
+          "review_id",
+          "expires_at"
+        ]
+      },
+      "maxItems": 256
+    },
+    "prohibited_packages": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "ecosystem": {
+            "enum": [
+              "npm",
+              "pypi"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "ecosystem",
+          "name"
+        ]
+      },
+      "maxItems": 256
+    },
+    "prohibited_artifact_hashes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 256
+    },
+    "require_metadata": {
+      "type": "boolean"
+    },
+    "verification": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "registries": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "ecosystem": {
+                "enum": [
+                  "npm",
+                  "pypi"
+                ]
+              },
+              "metadata_url": {
+                "type": "string"
+              },
+              "install_url": {
+                "type": "string"
+              },
+              "default": {
+                "type": "boolean"
+              },
+              "packages": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 256
+              },
+              "auth_env": {
+                "type": "string"
+              },
+              "allow_private_network": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "id",
+              "ecosystem",
+              "metadata_url",
+              "install_url",
+              "packages"
+            ]
+          },
+          "maxItems": 16
+        },
+        "dns_hosts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 128
+        },
+        "timeout_seconds": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 30
+        },
+        "max_requests": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 256
+        },
+        "cache_ttl_seconds": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3600
+        },
+        "min_interval_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000
+        }
+      },
+      "required": [
+        "schema_version",
+        "registries"
+      ]
+    }
+  },
+  "required": [
+    "schema_version",
+    "id",
+    "version",
+    "max_age_seconds",
+    "isolated_profiles",
+    "reviewed_actions",
+    "require_metadata"
+  ]
+}

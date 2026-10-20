@@ -114,6 +114,10 @@ func (e *extractor) packageOption(command *model.DocumentCommand, ecosystem stri
 		consumed, value = 2, args[1]
 	}
 	e.option(command, ecosystem, role, value)
+	if role == "selection" && command.Context == "action" && ecosystem == "pypi" && flag == "--only-binary" && value == ":all:" {
+		command.Options = append(command.Options, model.CommandOption{Name: flag, Value: value})
+		return consumed, explicit, true
+	}
 	if role == "selection" {
 		// Selection arguments can contain arbitrary input; preserve the switch
 		// but do not echo an unchecked value into the evidence channel.
@@ -171,6 +175,9 @@ func (e *extractor) addDependency(command *model.DocumentCommand, ecosystem, spe
 }
 
 func (e *extractor) destination(command *model.DocumentCommand, value, role string) {
+	if command.Context == "action" && value != SafeSource(value) {
+		e.gap("destination_redacted", "An action source contains URL components that cannot be resolved from redacted evidence.", command.Location)
+	}
 	u, err := url.Parse(value)
 	if err != nil || u.Hostname() == "" || (u.Scheme != "https" && u.Scheme != "http" && u.Scheme != "git+https" && u.Scheme != "git+http" && u.Scheme != "ssh" && u.Scheme != "git+ssh") {
 		e.gap("unresolved_destination", "A destination is not a supported absolute URL.", command.Location)
