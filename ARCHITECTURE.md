@@ -9,6 +9,20 @@ launchers and an operator-deployed gate add restricted execution paths.
 For installation, see the [README](README.md). For request and response schemas, see
 [action assessment](docs/action-assessment.md).
 
+## Component architecture
+
+[![SkillGuard component architecture: scanning, decisions, agent interfaces and controlled execution](docs/diagrams/architecture.svg)](docs/diagrams/architecture.svg)
+
+[Open the full-size image](docs/diagrams/architecture.svg) ·
+[Mermaid source](docs/diagrams/architecture.mmd) ·
+[Explore on GitDiagram](https://gitdiagram.com/ossafrica/skillguard)
+
+This maintained image adapts the GitDiagram component map. The shared runtime serves
+native plugins for all three clients; `index.mjs` is the OpenCode adapter. Protected
+launchers restrict client executors, while `guard.py` validates and dispatches mapped
+installers. The operator supplies isolation. Scan-only MCP tools stay offline; the
+optional verification path in the shared pipeline requires separate CLI/operator setup.
+
 ## Components and trust boundaries
 
 ### Document analysis
