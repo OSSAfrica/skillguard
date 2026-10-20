@@ -29,6 +29,10 @@ jobs:
         run: |
           go build -o "$RUNNER_TEMP/skillguard-harness-test" .
           SKILLGUARD_TEST_SCANNER="$RUNNER_TEMP/skillguard-harness-test" python3 -I -m unittest discover -s examples/harness -p 'test_*.py' -v
+          SKILLGUARD_TEST_SCANNER="$RUNNER_TEMP/skillguard-harness-test" python3 -I -m unittest discover -s integrations/clients -p 'test_*.py' -v
+
+      - name: Test OpenCode quarantine plugin
+        run: node --test integrations/clients/opencode-plugin/test.mjs
 
       - name: Run lint
         run: go vet ./...

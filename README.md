@@ -621,6 +621,11 @@ inputs and operator reviews. Incomplete required checks withhold execution.
 See [the action contract, schemas and examples](docs/action-assessment.md).
 An enforcing harness is required; a scan result alone does not authorize execution.
 
+For installed Claude Code, Codex and OpenCode clients, use the
+[opt-in protected launchers and shared MCP tools](docs/client-integrations.md).
+See the [installed-client validation record](docs/client-integration-validation.md)
+for tested versions, denial probes and limitations.
+
 For enforcement, see [the controlled harness gate, Claude Code quarantine hook,
 and publisher CI examples](docs/harness-integration.md). These examples require
 operator deployment and do not enable hooks or schedules automatically.
