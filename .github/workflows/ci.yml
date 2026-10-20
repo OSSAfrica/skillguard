@@ -25,6 +25,11 @@ jobs:
       - name: Run tests
         run: go test -v -race -cover ./...
 
+      - name: Test reference harness gate
+        run: |
+          go build -o "$RUNNER_TEMP/skillguard-harness-test" .
+          SKILLGUARD_TEST_SCANNER="$RUNNER_TEMP/skillguard-harness-test" python3 -I -m unittest discover -s examples/harness -p 'test_*.py' -v
+
       - name: Run lint
         run: go vet ./...
 

@@ -620,3 +620,10 @@ versioned `allow`/`review`/`deny` decisions over exact actions, bounded dependen
 inputs and operator reviews. Incomplete required checks withhold execution.
 See [the action contract, schemas and examples](docs/action-assessment.md).
 An enforcing harness is required; a scan result alone does not authorize execution.
+
+For enforcement, see [the controlled harness gate, Claude Code quarantine hook,
+and publisher CI examples](docs/harness-integration.md). These examples require
+operator deployment and do not enable hooks or schedules automatically.
+
+The [agent supply-chain overview](docs/agent-supply-chain.md) summarizes the
+completed layers, their boundaries, and validation.
