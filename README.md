@@ -9,6 +9,7 @@
 [![Configuration](https://img.shields.io/badge/configuration-A-gold?style=flat-square&labelColor=3443F4&color=04B45F)](https://github.com/OSSAfrica/skillguard/actions)
 [![CVEs](https://img.shields.io/badge/cves-A%2B-gold?style=flat-square&labelColor=3443F4&color=04B45F)](https://github.com/OSSAfrica/skillguard/actions)
 [![OpenSSF Scorecard](https://img.shields.io/ossf-scorecard/github.com/OSSAfrica/skillguard?label=OpenSSF)](https://securityscorecards.dev/details/github.com/OSSAfrica/skillguard)
+[![Architecture diagram](https://gitdiagram.com/diagram-badge.svg)](https://gitdiagram.com/ossafrica/skillguard?utm_source=readme&utm_medium=badge)
 
 Scan AI agent skills and documentation for prompt injection, risky commands and
 supply-chain risks. Assess proposed installs with explicit policy, and connect those
@@ -192,6 +193,9 @@ network boundaries and uncertainty states.
 ```sh
 skillguard assess --policy /protected/action-policy.json < request.json
 ```
+
+See the [policy reference](docs/policies.md) for field meanings, defaults and starting
+examples.
 
 Assessment never executes. See the [action contract](docs/action-assessment.md) for
 schemas and examples, and [harness integration](docs/harness-integration.md) for the

@@ -2,6 +2,9 @@
 
 [Documentation](README.md) / Reference metadata verification
 
+For each policy field, its default and accepted values, see the
+[policy reference](policies.md).
+
 Reference verification adds opt-in npm/PyPI metadata observations and optional DNS facts
 to the command inventory. It does not install packages, run package-manager commands,
 download artifacts or scripts, or certify package legitimacy.

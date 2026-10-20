@@ -2,6 +2,9 @@
 
 [Documentation](README.md) / Action assessment v1
 
+For each policy field, its default and accepted values, see the
+[policy reference](policies.md).
+
 `skillguard assess --policy /protected/operator.json < request.json` evaluates one exact
 proposed install action. It never runs that action or installs anything. This interface
 is separate from `scan` and has its own output and exit contract. There is no score
