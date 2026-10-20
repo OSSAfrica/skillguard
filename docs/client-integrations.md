@@ -1,5 +1,9 @@
 # Claude Code, Codex and OpenCode integrations
 
+For scanning in ordinary coding sessions, use the
+[native plugin installation](native-plugins.md). The profiles below provide a
+separate, more restrictive execution boundary.
+
 SkillGuard provides shared MCP tools and opt-in local launchers for Claude Code,
 Codex and OpenCode. The launcher profiles remove general command executors and
 connect a protected SkillGuard server. Normal client commands and global settings

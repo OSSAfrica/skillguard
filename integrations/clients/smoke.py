@@ -71,6 +71,8 @@ class Model(http.server.BaseHTTPRequestHandler):
                     tool = "execute" if client == "opencode" else "Bash" if client == "claude" else "exec_command"
                     args = {"code": 'return await tools.opencode.shell.create({"command":' + json.dumps("/usr/bin/touch " + str(fixture["marker"])) + '})'} if client == "opencode" else {"command" if client == "claude" else "cmd": "/usr/bin/touch " + str(fixture["marker"])}
                 fixture["step"] += 1
+        if fixture.get("select"):
+            tool, args = fixture["select"](names)
         final = "Synthetic probe complete."
         if client == "claude":
             content = {"type": "tool_use", "id": "call_" + str(fixture["requests"]), "name": tool, "input": args} if tool else {"type": "text", "text": final}
@@ -82,7 +84,7 @@ class Model(http.server.BaseHTTPRequestHandler):
         elif client == "codex":
             item = {"type": "function_call", "id": "fc_" + str(fixture["requests"]), "call_id": "call_" + str(fixture["requests"]), "name": tool, "arguments": json.dumps(args), "status": "completed"} if tool else {"type": "message", "id": "msg_fixture", "role": "assistant", "content": [{"type": "output_text", "text": final, "annotations": []}], "status": "completed"}
             if tool and tool.startswith("skillguard_"):
-                item["namespace"] = "mcp__skillguard"
+                item["namespace"] = fixture.get("namespace", "mcp__skillguard")
             response = {"id": "resp_" + str(fixture["requests"]), "object": "response", "created_at": int(time.time()), "model": "fixture", "output": [item], "status": "completed", "usage": {"input_tokens": 1, "output_tokens": 1, "total_tokens": 2}}
             events = [("response.created", {"type": "response.created", "response": dict(response, status="in_progress", output=[])}), ("response.output_item.added", {"type": "response.output_item.added", "output_index": 0, "item": item}), ("response.output_item.done", {"type": "response.output_item.done", "output_index": 0, "item": item}), ("response.completed", {"type": "response.completed", "response": response})]
         else:

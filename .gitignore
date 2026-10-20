@@ -6,7 +6,7 @@
 *.dylib
 
 # Built binary
-skillguard
+/skillguard
 
 # Test binary, built with `go test -c`
 *.test

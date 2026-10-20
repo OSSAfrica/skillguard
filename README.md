@@ -621,7 +621,12 @@ inputs and operator reviews. Incomplete required checks withhold execution.
 See [the action contract, schemas and examples](docs/action-assessment.md).
 An enforcing harness is required; a scan result alone does not authorize execution.
 
-For installed Claude Code, Codex and OpenCode clients, use the
+For ordinary Claude Code, Codex and OpenCode sessions, install the
+[native SkillGuard plugin](docs/native-plugins.md) through the agent's plugin
+manager. It adds advisory scanning and setup/status/review workflows without
+requiring Go or changing the agent's other tools.
+
+For restricted execution in installed clients, use the
 [opt-in protected launchers and shared MCP tools](docs/client-integrations.md).
 See the [installed-client validation record](docs/client-integration-validation.md)
 for tested versions, denial probes and limitations.
