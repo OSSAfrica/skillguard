@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -43,6 +44,40 @@ func TestFindSkillFiles_ScansNamedSkillFile(t *testing.T) {
 
 	if len(files) != 1 || files[0].FileType != FileTypeSkill {
 		t.Fatalf("expected one skill file, got %+v", files)
+	}
+}
+
+func TestLeadingBOMPreservesSkillMetadataAndBody(t *testing.T) {
+	for _, newline := range []string{"\n", "\r\n"} {
+		t.Run(fmt.Sprintf("newline_%q", newline), func(t *testing.T) {
+			dir := t.TempDir()
+			path := filepath.Join(dir, "SKILL.md")
+			body := "Keep this body marker: \ufeff."
+			content := "\ufeff---" + newline + "name: bom-skill" + newline + "---" + newline + body
+			writeFile(t, path, content)
+
+			for _, input := range []string{dir, path} {
+				files, warnings, err := FindSkillFiles(input)
+				if err != nil || len(warnings) != 0 || len(files) != 1 {
+					t.Fatalf("FindSkillFiles(%q) = %v, %v, %v", input, files, warnings, err)
+				}
+				if files[0].FileType != FileTypeSkill {
+					t.Fatalf("FileType = %v, want skill", files[0].FileType)
+				}
+			}
+
+			metadata, gotBody, err := ParseSkillFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if metadata.Name != "bom-skill" || gotBody != body {
+				t.Fatalf("metadata name = %q, body = %q; want bom-skill and %q", metadata.Name, gotBody, body)
+			}
+			extracted, err := ExtractBodyOnly(path)
+			if err != nil || extracted != body {
+				t.Fatalf("ExtractBodyOnly() = %q, %v; want %q", extracted, err, body)
+			}
+		})
 	}
 }
 
