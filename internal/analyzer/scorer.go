@@ -568,17 +568,34 @@ func (s *Scorer) checkNetworkAccess(body string) []model.Finding {
 		seen[url] = true
 
 		if s.isUntrustedURL(url) {
+			evidence := networkEvidence(url)
 			findings = append(findings, model.Finding{
 				Category:    model.CategoryNetwork,
 				Severity:    model.SeverityMedium,
-				Description: "External URL to untrusted domain: " + url,
-				Pattern:     url,
+				Description: "External URL to untrusted domain: " + evidence,
+				Pattern:     evidence,
 				ScoreCat:    model.CatSecurity,
 			})
 		}
 	}
 
 	return findings
+}
+
+// networkEvidence keeps destinations useful without reproducing authentication
+// material from documentation in reports or CI logs.
+func networkEvidence(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return "[invalid URL]"
+	}
+	u.User, u.RawQuery, u.Fragment = nil, "", ""
+	u.ForceQuery = false
+	evidence := u.String()
+	if len(evidence) > 1024 {
+		evidence = evidence[:1024] + "…"
+	}
+	return evidence
 }
 
 // isUntrustedURL decides trust from the parsed host only. Substring matching on
