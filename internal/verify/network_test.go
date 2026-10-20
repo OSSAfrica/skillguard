@@ -127,7 +127,7 @@ func TestRateLimitCancellationAndTLSValidation(t *testing.T) {
 }
 
 func TestPublicCDNAnswerSetsAreBoundedAndFullyChecked(t *testing.T) {
-	answers := make([]net.IPAddr, 24)
+	answers := make([]net.IPAddr, 24, 25)
 	for i := range answers {
 		answers[i] = net.IPAddr{IP: net.ParseIP("8.8.8.8")}
 	}
