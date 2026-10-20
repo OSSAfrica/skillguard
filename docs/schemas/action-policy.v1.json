@@ -6,25 +6,30 @@
   "additionalProperties": false,
   "properties": {
     "schema_version": {
-      "const": 1
+      "const": 1,
+      "description": "Policy format version; must be 1, independently of the engine version or policy revision."
     },
     "id": {
-      "type": "string"
+      "type": "string",
+      "description": "Operator policy identifier, returned as policy_id. Runtime requires 1-128 ASCII characters: first alphanumeric, then alphanumeric or underscore, dot, colon, hyphen."
     },
     "version": {
-      "type": "string"
+      "type": "string",
+      "description": "Operator policy revision string, returned as policy_version. Uses the same identifier format as id; no automatic version ordering."
     },
     "max_age_seconds": {
       "type": "integer",
       "minimum": 1,
-      "maximum": 300
+      "maximum": 300,
+      "description": "Required assessment lifetime cap, 1-300 seconds. Review/evidence expiry may shorten it; partial/error responses expire immediately. Zero is invalid."
     },
     "isolated_profiles": {
       "type": "array",
       "items": {
         "type": "string"
       },
-      "maxItems": 32
+      "maxItems": 32,
+      "description": "Operator-attested isolation profile IDs matching request.context_profile. Empty means no verified context. Entries attest existing harness controls; they do not create a sandbox."
     },
     "reviewed_actions": {
       "type": "array",
@@ -34,21 +39,26 @@
         "properties": {
           "subject_fingerprint": {
             "type": "string",
-            "pattern": "^sha256:[a-f0-9]{64}$"
+            "pattern": "^sha256:[a-f0-9]{64}$",
+            "description": "Exact reviewed action fingerprint from an assessment response; sha256: plus 64 lowercase hexadecimal digits."
           },
           "context_fingerprint": {
             "type": "string",
-            "pattern": "^sha256:[a-f0-9]{64}$"
+            "pattern": "^sha256:[a-f0-9]{64}$",
+            "description": "Exact reviewed context fingerprint from the assessment, including environment, profile and input contents. Same SHA-256 format as subject_fingerprint."
           },
           "review_id": {
-            "type": "string"
+            "type": "string",
+            "description": "Operator audit reference using the assessment identifier format; not an approval token by itself."
           },
           "expires_at": {
             "type": "string",
-            "format": "date-time"
+            "format": "date-time",
+            "description": "Nonzero RFC 3339 review expiry; write UTC with Z. Expired records grant no review."
           },
           "accept_mutable_artifacts": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "Optional, default false. Accepts unresolved artifact bytes only for this exact review; does not waive other checks or prove safety."
           }
         },
         "required": [
@@ -58,7 +68,8 @@
           "expires_at"
         ]
       },
-      "maxItems": 256
+      "maxItems": 256,
+      "description": "Exact subject/context reviews supplied by an independent operator. Empty grants no reviews. Expiry and all other mandatory checks still apply."
     },
     "prohibited_packages": {
       "type": "array",
@@ -70,13 +81,16 @@
             "enum": [
               "npm",
               "pypi"
-            ]
+            ],
+            "description": "Package ecosystem: npm or pypi."
           },
           "name": {
-            "type": "string"
+            "type": "string",
+            "description": "Exact package name, 1-214 characters at runtime; not a glob. PyPI matching lowercases and normalizes runs of dot, underscore and hyphen."
           },
           "version": {
-            "type": "string"
+            "type": "string",
+            "description": "Optional; omitted or empty matches all versions. npm requires canonical numeric major.minor.patch; PyPI supports 1-4 numeric components with zero-padding normalization. No ranges or prereleases."
           }
         },
         "required": [
@@ -118,24 +132,28 @@
           }
         ]
       },
-      "maxItems": 256
+      "maxItems": 256,
+      "description": "Optional exact package prohibitions; an omitted list adds none. Matching rules deny and cannot be overridden by review."
     },
     "prohibited_artifact_hashes": {
       "type": "array",
       "items": {
         "type": "string"
       },
-      "maxItems": 256
+      "maxItems": 256,
+      "description": "Optional exact resolved artifact prohibitions: sha256: plus 64 lowercase hex digits or sha512- plus canonical Base64 of 64 bytes. Does not fetch artifacts."
     },
     "require_metadata": {
-      "type": "boolean"
+      "type": "boolean",
+      "description": "Explicit required boolean: true requires fresh complete exact-version metadata and verification configuration; false selects offline assessment while preserving source, context and review checks."
     },
     "verification": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
         "schema_version": {
-          "const": 1
+          "const": 1,
+          "description": "Verification format version; must be 1."
         },
         "registries": {
           "type": "array",
@@ -144,35 +162,43 @@
             "additionalProperties": false,
             "properties": {
               "id": {
-                "type": "string"
+                "type": "string",
+                "description": "Unique registry label, 1-128 ASCII characters: first letter or underscore, followed by letters, digits, underscore or hyphen."
               },
               "ecosystem": {
                 "enum": [
                   "npm",
                   "pypi"
-                ]
+                ],
+                "description": "npm or pypi; selects metadata API and package-name matching behavior."
               },
               "metadata_url": {
-                "type": "string"
+                "type": "string",
+                "description": "Canonical HTTPS API base, at most 512 characters at runtime. No credentials, query, fragment or encoded/noncanonical path. npm appends name; PyPI appends name/json."
               },
               "install_url": {
-                "type": "string"
+                "type": "string",
+                "description": "Canonical HTTPS registry/index base permitted as an effective install source, at most 512 characters. Unique per ecosystem. Does not itself approve a command."
               },
               "default": {
-                "type": "boolean"
+                "type": "boolean",
+                "description": "Optional, default false; at most one per ecosystem. Fallback for documentation metadata routing only. Assessment requires explicit supported source flags."
               },
               "packages": {
                 "type": "array",
                 "items": {
                   "type": "string"
                 },
-                "maxItems": 256
+                "maxItems": 256,
+                "description": "Nonempty metadata-name disclosure list, 1-256 patterns of at most 256 characters. Exact names or star patterns; special * permits all including scoped npm names. Not an execution allowlist."
               },
               "auth_env": {
-                "type": "string"
+                "type": "string",
+                "description": "Optional Bearer-token environment-variable name, not the secret. Format: first letter/underscore, then letters/digits/underscore, 1-128 characters. Unavailable credentials report unauthorized."
               },
               "allow_private_network": {
-                "type": "boolean"
+                "type": "boolean",
+                "description": "Optional, default false. Allows private/loopback access only for this registry; reserved/link-local restrictions and TLS verification remain."
               }
             },
             "required": [
@@ -183,40 +209,47 @@
               "packages"
             ]
           },
-          "maxItems": 16
+          "maxItems": 16,
+          "description": "Up to 16 registry configurations with unique IDs and ecosystem/install URL pairs. Empty authorizes no package metadata destination."
         },
         "dns_hosts": {
           "type": "array",
           "items": {
             "type": "string"
           },
-          "maxItems": 128
+          "maxItems": 128,
+          "description": "Optional exact destination DNS disclosure list, at most 128 hosts. Default empty; no wildcard, URL or port. Lowercase/final-dot normalization; no content fetching or ownership proof."
         },
         "timeout_seconds": {
           "type": "integer",
           "minimum": 0,
-          "maximum": 30
+          "maximum": 30,
+          "description": "Per-lookup timeout. Omitted or zero defaults to 5 seconds; effective range 1-30."
         },
         "max_requests": {
           "type": "integer",
           "minimum": 0,
-          "maximum": 256
+          "maximum": 256,
+          "description": "Lookup-attempt budget shared across a verifier scan, including destination DNS checks. Omitted or zero defaults to 64; effective range 1-256."
         },
         "cache_ttl_seconds": {
           "type": "integer",
           "minimum": 0,
-          "maximum": 3600
+          "maximum": 3600,
+          "description": "Process-local package observation lifetime cap. Omitted or zero defaults to 300 seconds; effective range 1-3600. Negative evidence is additionally capped at 60 seconds."
         },
         "min_interval_ms": {
           "type": "integer",
           "minimum": 0,
-          "maximum": 10000
+          "maximum": 10000,
+          "description": "Minimum interval between lookup attempts. Omitted or zero defaults to 100 milliseconds; effective range 1-10000. Zero does not disable throttling."
         }
       },
       "required": [
         "schema_version",
         "registries"
-      ]
+      ],
+      "description": "Nested verification policy. Required when require_metadata is true; allowed registry install sources still need matching entries in offline mode. Package disclosure lists never approve execution."
     }
   },
   "required": [
@@ -227,5 +260,6 @@
     "isolated_profiles",
     "reviewed_actions",
     "require_metadata"
-  ]
+  ],
+  "description": "Operator-controlled policy for exact action assessment. Policy does not execute actions or create isolation. See docs/policies.md for defaults, runtime constraints and review workflow."
 }
