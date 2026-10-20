@@ -42,6 +42,7 @@ SkillGuard provides the first line of defense by analyzing skill definitions bef
 - **CI/CD integration** - Threshold-based exit codes for automated pipelines
 - **Multiple output formats** - Colored CLI output and JSON reports
 - **Documentation command inventory** - Scan `llms.txt`, `llms-full.txt`, explicit text files, or stdin; extract installation commands, dependency references, destinations, and coverage gaps without executing them
+- **Opt-in reference verification** - Check npm/PyPI metadata and approved DNS destinations using an explicit operator policy; report missing references and uncertainty without treating existence as legitimacy
 - **Configurable** - Custom thresholds, paths, and trusted domains
 
 ## How It Works
@@ -267,6 +268,11 @@ legitimacy or authorize execution. Coverage gaps are reported separately from
 security scores. See [documentation inputs and command extraction](docs/command-extraction.md)
 for supported syntax, local-file boundaries, limits, and machine fields.
 
+Add `--verify-references --verification-policy /trusted/registries.json` for
+bounded, authorized metadata lookups. Package-name disclosure requires policy
+allowlists; scans stay offline otherwise. See [reference verification](docs/reference-verification.md)
+for policy examples, lookup states, private registries, and freshness limits.
+
 ## Visual Examples
 
 ### Help Command
@@ -308,9 +314,9 @@ Scan multiple paths (comma-separated) and handle errors gracefully:
 
 | Code | Meaning                                             |
 |------|-----------------------------------------------------|
-| `0`  | Scan completed, all skills passed threshold         |
-| `1`  | Scan completed, one or more skills failed threshold |
-| `2`  | Scan failed or input coverage was incomplete (including skipped or no analyzed inputs) |
+| `0`  | Requested score/metadata checks completed and passed; does not authorize execution |
+| `1`  | Score failure, missing reference, or configured intelligence match |
+| `2`  | Scan or opted-in verification incomplete, blocked, unavailable, or failed |
 
 ## Configuration
 

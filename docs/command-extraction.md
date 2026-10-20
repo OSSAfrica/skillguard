@@ -6,10 +6,10 @@ and download commands alongside the existing static security findings.
 
 **This feature does not authorize execution.** A passing security score or a
 `complete` extraction is not proof that a package, domain, or command is safe.
-Package existence/identity verification and harness enforcement are separate work
-in [#183](https://github.com/OSSAfrica/skillguard/issues/183),
-[#184](https://github.com/OSSAfrica/skillguard/issues/184), and
-[#185](https://github.com/OSSAfrica/skillguard/issues/185).
+Opt-in [reference metadata verification](reference-verification.md) adds registry
+observations without establishing identity. Action decisions and harness
+enforcement remain separate work in [#184](https://github.com/OSSAfrica/skillguard/issues/184)
+and [#185](https://github.com/OSSAfrica/skillguard/issues/185).
 
 ## Inputs
 
