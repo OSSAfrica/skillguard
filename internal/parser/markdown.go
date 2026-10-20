@@ -3,9 +3,11 @@ package parser
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
+	"unicode/utf8"
 
 	"skillguard/internal/model"
 
@@ -56,12 +58,17 @@ func parseAllowedTools(v interface{}) []string {
 }
 
 func ParseSkillFile(path string) (*model.SkillMetadata, string, error) {
-	content, err := os.ReadFile(path) // #nosec G304 -- CLI tool reads user-specified paths by design
+	content, err := ReadTextFile(path)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to read file: %w", err)
 	}
 
-	frontmatter, body, err := extractFrontmatter(string(content))
+	return ParseSkillText(path, string(content))
+}
+
+// ParseSkillText lets analysis and extraction share one bounded input snapshot.
+func ParseSkillText(path, content string) (*model.SkillMetadata, string, error) {
+	frontmatter, body, err := extractFrontmatter(content)
 	if err != nil {
 		return nil, "", err
 	}
@@ -116,17 +123,21 @@ func extractFrontmatter(content string) (*Frontmatter, string, error) {
 }
 
 func ExtractBodyOnly(path string) (string, error) {
-	content, err := os.ReadFile(path) // #nosec G304 -- CLI tool reads user-specified paths by design
+	content, err := ReadTextFile(path)
 	if err != nil {
 		return "", fmt.Errorf("failed to read file: %w", err)
 	}
 
-	frontmatter, body, err := extractFrontmatter(string(content))
+	return ExtractBodyText(path, string(content))
+}
+
+func ExtractBodyText(path, content string) (string, error) {
+	frontmatter, body, err := extractFrontmatter(content)
 	if err != nil {
 		if err == ErrNoFrontmatter {
-			return string(content), nil
+			return content, nil
 		}
-		return string(content), nil
+		return content, nil
 	}
 
 	if frontmatter != nil && body == "" {
@@ -141,6 +152,7 @@ type FileType int
 const (
 	FileTypeSkill FileType = iota
 	FileTypeReference
+	FileTypeDocument
 )
 
 type FoundFile struct {
@@ -148,7 +160,7 @@ type FoundFile struct {
 	FileType FileType
 }
 
-// FindSkillFiles locates the Markdown files to scan under path.
+// FindSkillFiles locates Markdown and conventional llms documentation under path.
 //
 // It returns the files found, warnings for anything that had to be skipped, and
 // an error only when the requested path itself cannot be scanned. A single
@@ -217,7 +229,8 @@ func walkSkillDir(dir string, visited map[string]bool, files *[]FoundFile, warni
 			continue
 		}
 
-		if !strings.HasSuffix(strings.ToLower(entry.Name()), ".md") {
+		name := strings.ToLower(entry.Name())
+		if !strings.HasSuffix(name, ".md") && name != "llms.txt" && name != "llms-full.txt" {
 			continue
 		}
 
@@ -237,12 +250,18 @@ func walkSkillDir(dir string, visited map[string]bool, files *[]FoundFile, warni
 // was never read.
 func classifyFile(path string, explicit bool) (FoundFile, bool) {
 	if !strings.HasSuffix(strings.ToLower(filepath.Base(path)), ".md") {
+		name := strings.ToLower(filepath.Base(path))
+		if explicit || name == "llms.txt" || name == "llms-full.txt" {
+			return FoundFile{Path: path, FileType: FileTypeDocument}, true
+		}
 		return FoundFile{}, false
 	}
 
-	content, err := os.ReadFile(path) // #nosec G304 -- CLI tool reads user-specified paths by design
+	content, err := ReadTextFile(path)
 	if err != nil {
-		return FoundFile{}, false
+		// Keep the target visible; analysis reports the read failure as a
+		// structured coverage gap rather than silently dropping the input.
+		return FoundFile{Path: path, FileType: FileTypeReference}, true
 	}
 
 	name := strings.ToLower(filepath.Base(path))
@@ -254,4 +273,40 @@ func classifyFile(path string, explicit bool) (FoundFile, bool) {
 	}
 
 	return FoundFile{Path: path, FileType: FileTypeReference}, true
+}
+
+const MaxTextBytes = 1 << 20
+
+// ReadText rejects oversized/binary inputs instead of silently analyzing a prefix.
+func ReadText(reader io.Reader) ([]byte, error) {
+	content, err := io.ReadAll(io.LimitReader(reader, MaxTextBytes+1))
+	if err != nil {
+		return nil, fmt.Errorf("could not read text input")
+	}
+	if len(content) > MaxTextBytes {
+		return nil, fmt.Errorf("text input exceeds the 1 MiB limit")
+	}
+	if !utf8.Valid(content) || strings.IndexByte(string(content), 0) >= 0 {
+		return nil, fmt.Errorf("input is not supported UTF-8 text")
+	}
+	return content, nil
+}
+
+func ReadTextFile(path string) ([]byte, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return nil, fmt.Errorf("could not access text input")
+	}
+	if !info.Mode().IsRegular() {
+		return nil, fmt.Errorf("text input must be a regular file")
+	}
+	if info.Size() > MaxTextBytes {
+		return nil, fmt.Errorf("text input exceeds the 1 MiB limit")
+	}
+	file, err := os.Open(path) // #nosec G304 -- explicitly requested input; referenced inputs use os.Root
+	if err != nil {
+		return nil, fmt.Errorf("could not open text input")
+	}
+	defer func() { _ = file.Close() }()
+	return ReadText(file)
 }

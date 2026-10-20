@@ -196,3 +196,37 @@ func writeFile(t *testing.T, path, content string) {
 		t.Fatal(err)
 	}
 }
+
+func TestDocumentationDiscoveryAndExplicitText(t *testing.T) {
+	dir := t.TempDir()
+	for _, name := range []string{"llms.txt", "llms-full.txt", "notes.txt", "README.md"} {
+		writeFile(t, filepath.Join(dir, name), "npm install helper@1\n")
+	}
+	files, warnings, err := FindSkillFiles(dir)
+	if err != nil || len(warnings) != 0 || len(files) != 3 {
+		t.Fatalf("directory discovery = %v, %v, %v", files, warnings, err)
+	}
+	for _, file := range files {
+		if filepath.Base(file.Path) == "notes.txt" {
+			t.Fatal("directory discovery swept arbitrary txt files")
+		}
+		if strings.HasSuffix(file.Path, ".txt") && file.FileType != FileTypeDocument {
+			t.Fatalf("text document classified as a skill: %+v", file)
+		}
+	}
+	files, _, err = FindSkillFiles(filepath.Join(dir, "notes.txt"))
+	if err != nil || len(files) != 1 || files[0].FileType != FileTypeDocument {
+		t.Fatalf("explicit text = %v, %v", files, err)
+	}
+}
+
+func TestTextReadRejectsOversizedAndBinaryInputs(t *testing.T) {
+	for _, content := range []string{strings.Repeat("x", MaxTextBytes+1), "binary\x00input", "invalid\xff"} {
+		if _, err := ReadText(strings.NewReader(content)); err == nil {
+			t.Fatal("unsupported input accepted")
+		}
+	}
+	if _, err := ReadText(strings.NewReader(strings.Repeat("x", MaxTextBytes))); err != nil {
+		t.Fatalf("exact-limit input rejected: %v", err)
+	}
+}
