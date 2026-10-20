@@ -44,5 +44,7 @@ permissions, runtime pins or plugin combinations.
 
 - [Development](../DEVELOPMENT.md): local setup and checks.
 - [Contributing](../CONTRIBUTING.md): contribution requirements.
+- [Contribution audit](contribution-requirements.md): verified merge gates, CI inventory
+  and the DCO status-enforcement gap.
 - [Security policy](../SECURITY.md): vulnerability reporting.
 - [Roadmap](../ROADMAP.md): planned work.
