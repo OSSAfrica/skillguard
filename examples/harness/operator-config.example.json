@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "target_root": "/workspace/project",
+  "cwd": "/workspace/project",
+  "policy": "/protected/operator-policy.json",
+  "scanner": "/protected/skillguard",
+  "scanner_sha256": "sha256:REPLACE_WITH_REVIEWED_BINARY_HASH",
+  "profile": "isolated-installer-v1",
+  "environment": {},
+  "inputs": [{"path": "requirements.txt", "kind": "requirements"}],
+  "executables": {
+    "pip": {
+      "path": "/protected/installer/bin/pip",
+      "sha256": "sha256:REPLACE_WITH_REVIEWED_EXECUTABLE_HASH"
+    }
+  }
+}
