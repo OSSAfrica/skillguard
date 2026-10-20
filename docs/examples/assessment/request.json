@@ -1,0 +1,20 @@
+{
+  "target_root": "/workspace/project",
+  "schema_version": 1,
+  "action": {
+    "mode": "argv",
+    "argv": [
+      "pip",
+      "install",
+      "--only-binary=:all:",
+      "--no-deps",
+      "--index-url",
+      "https://pypi.org/simple",
+      "requests==2.32.3"
+    ]
+  },
+  "cwd": "/workspace/project",
+  "environment": {},
+  "context_profile": "isolated-installer-v1",
+  "inputs": []
+}

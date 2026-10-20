@@ -1,0 +1,359 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/OSSAfrica/skillguard/docs/schemas/action-response.v1.json",
+  "title": "SkillGuard action-response v1",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "engine_version": {
+      "type": "string"
+    },
+    "ruleset_version": {
+      "const": "action-v1"
+    },
+    "assessed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "status": {
+      "enum": [
+        "complete",
+        "partial",
+        "error"
+      ]
+    },
+    "decision": {
+      "enum": [
+        "allow",
+        "review",
+        "deny"
+      ]
+    },
+    "policy_id": {
+      "type": "string"
+    },
+    "policy_version": {
+      "type": "string"
+    },
+    "policy_fingerprint": {
+      "type": "string"
+    },
+    "subject_fingerprint": {
+      "type": "string"
+    },
+    "context_fingerprint": {
+      "type": "string"
+    },
+    "evidence_fingerprint": {
+      "type": "string"
+    },
+    "decision_fingerprint": {
+      "type": "string"
+    },
+    "evidence_trust": {
+      "const": "untrusted_data"
+    },
+    "review_id": {
+      "type": "string"
+    },
+    "rules": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "effect": {
+            "enum": [
+              "info",
+              "review",
+              "deny",
+              "incomplete"
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "remediation": {
+            "type": "string"
+          },
+          "location": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "source": {
+                "type": "string"
+              },
+              "start_line": {
+                "type": "integer"
+              },
+              "end_line": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "source",
+              "start_line",
+              "end_line"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "effect",
+          "message",
+          "remediation",
+          "location"
+        ]
+      },
+      "maxItems": 512
+    },
+    "checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "status": {
+            "enum": [
+              "complete",
+              "partial",
+              "error",
+              "not_requested"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "required",
+          "status"
+        ]
+      },
+      "maxItems": 512
+    },
+    "inputs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "sha256": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "read",
+              "unavailable"
+            ]
+          }
+        },
+        "required": [
+          "path",
+          "kind",
+          "sha256",
+          "status"
+        ]
+      },
+      "maxItems": 32
+    },
+    "dependencies": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "dependency": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "ecosystem": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "specifier": {
+                "type": "string"
+              },
+              "source": {
+                "type": "string"
+              },
+              "alias": {
+                "type": "string"
+              },
+              "extras": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 512
+              }
+            },
+            "required": [
+              "ecosystem",
+              "source"
+            ]
+          },
+          "location": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "source": {
+                "type": "string"
+              },
+              "start_line": {
+                "type": "integer"
+              },
+              "end_line": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "source",
+              "start_line",
+              "end_line"
+            ]
+          },
+          "artifact_hashes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 512
+          }
+        },
+        "required": [
+          "dependency",
+          "location",
+          "artifact_hashes"
+        ]
+      },
+      "maxItems": 512
+    },
+    "verification": {
+      "type": "object",
+      "required": [
+        "status",
+        "packages",
+        "destinations",
+        "gaps"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "complete",
+            "partial"
+          ]
+        },
+        "packages": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          },
+          "maxItems": 512
+        },
+        "destinations": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          },
+          "maxItems": 512
+        },
+        "gaps": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          },
+          "maxItems": 512
+        }
+      }
+    }
+  },
+  "required": [
+    "schema_version",
+    "engine_version",
+    "ruleset_version",
+    "assessed_at",
+    "expires_at",
+    "status",
+    "decision",
+    "policy_id",
+    "policy_version",
+    "policy_fingerprint",
+    "subject_fingerprint",
+    "context_fingerprint",
+    "evidence_fingerprint",
+    "decision_fingerprint",
+    "evidence_trust",
+    "rules",
+    "checks",
+    "inputs",
+    "dependencies"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "decision": {
+            "const": "allow"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "status": {
+            "const": "complete"
+          },
+          "review_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "policy_fingerprint": {
+            "type": "string",
+            "pattern": "^sha256:[a-f0-9]{64}$"
+          },
+          "subject_fingerprint": {
+            "type": "string",
+            "pattern": "^sha256:[a-f0-9]{64}$"
+          },
+          "context_fingerprint": {
+            "type": "string",
+            "pattern": "^sha256:[a-f0-9]{64}$"
+          },
+          "evidence_fingerprint": {
+            "type": "string",
+            "pattern": "^sha256:[a-f0-9]{64}$"
+          },
+          "decision_fingerprint": {
+            "type": "string",
+            "pattern": "^sha256:[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "review_id"
+        ]
+      }
+    }
+  ]
+}

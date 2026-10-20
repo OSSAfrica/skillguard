@@ -34,6 +34,10 @@ func Execute() {
 		return
 	}
 
+	if code, ok := assessmentExitCode(err); ok {
+		os.Exit(code)
+	}
+
 	if errors.Is(err, errSkillsFailed) || errors.Is(err, errReferencesFailed) {
 		os.Exit(1)
 	}

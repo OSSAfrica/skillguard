@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/OSSAfrica/skillguard/docs/schemas/action-request.v1.json",
+  "title": "SkillGuard action-request v1",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "target_root": {
+      "type": "string"
+    },
+    "cwd": {
+      "type": "string"
+    },
+    "action": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "mode": {
+              "const": "argv"
+            },
+            "argv": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 512,
+              "items": {
+                "type": "string",
+                "maxLength": 8192
+              }
+            }
+          },
+          "required": [
+            "mode",
+            "argv"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "mode": {
+              "const": "bash"
+            },
+            "command": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 65536
+            }
+          },
+          "required": [
+            "mode",
+            "command"
+          ]
+        }
+      ]
+    },
+    "environment": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string",
+        "maxLength": 8192
+      },
+      "maxProperties": 128
+    },
+    "context_profile": {
+      "type": "string"
+    },
+    "inputs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
+          },
+          "kind": {
+            "enum": [
+              "requirements",
+              "constraints",
+              "manifest",
+              "lockfile",
+              "config"
+            ]
+          }
+        },
+        "required": [
+          "path",
+          "kind"
+        ]
+      },
+      "maxItems": 32
+    },
+    "provenance": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 2048
+      },
+      "maxItems": 16
+    }
+  },
+  "required": [
+    "schema_version",
+    "target_root",
+    "cwd",
+    "action",
+    "environment",
+    "context_profile",
+    "inputs"
+  ]
+}

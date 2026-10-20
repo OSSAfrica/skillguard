@@ -612,3 +612,11 @@ MIT License - see [LICENSE](LICENSE) for details.
 ## Acknowledgments
 
 Inspired by tools like Snyk, Socket.dev, and npm audit for bringing security transparency to software ecosystems.
+
+### Assess proposed agent actions
+
+Use `skillguard assess --policy /protected/action-policy.json < request.json` for
+versioned `allow`/`review`/`deny` decisions over exact actions, bounded dependency
+inputs and operator reviews. Incomplete required checks withhold execution.
+See [the action contract, schemas and examples](docs/action-assessment.md).
+An enforcing harness is required; a scan result alone does not authorize execution.
