@@ -158,7 +158,11 @@ A digest proves byte identity, not that those bytes are benign. Source builds an
 actions require wheels only.
 
 `prohibited_packages` entries match ecosystem/name and optionally version;
-Python names normalize case and runs of dash/underscore/dot. No version means all
+Python names normalize case and runs of dash/underscore/dot. Numeric release
+versions compare with PEP 440 zero padding (`1.0` equals `1.0.0`), including
+leading-zero normalization. npm exact versions require canonical `major.minor.patch`;
+shorthands such as `1.0` are ranges and cannot pass the exact-version rule.
+Version-specific prohibitions accept only these supported numeric forms. No version means all
 versions. `prohibited_artifact_hashes` uses `sha256:<hex>` or `sha512-<base64>`.
 These are operator prohibitions, not inferred malware labels. Confirmed malware
 from a trusted embedded intelligence provider returns `SG_MALWARE_CONFIRMED` and

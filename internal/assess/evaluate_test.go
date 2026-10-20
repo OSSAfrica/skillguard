@@ -291,3 +291,41 @@ func TestCanceledAndInvalidLibraryInput(t *testing.T) {
 		t.Fatal(got)
 	}
 }
+
+func TestVersionPolicyUsesInstallerSemantics(t *testing.T) {
+	for _, version := range []string{"1.0", "1.0.0", "01.00.0", "1.0.0.0"} {
+		r, p, o := testSetup(t)
+		r.Action.Argv[len(r.Action.Argv)-1] = "requests==" + version
+		p = reviewed(t, r, p, o, true)
+		p.ProhibitedPackages = []PackageRule{{Ecosystem: "pypi", Name: "requests", Version: "1.0.0"}}
+		result := Evaluate(context.Background(), r, p, o)
+		if result.Decision != "deny" || !hasRule(result, "SG_PACKAGE_PROHIBITED") {
+			t.Fatalf("equivalent version bypassed policy: %s %+v", version, result)
+		}
+	}
+	for _, version := range []string{"1.0", "1", "01.0.0", "1.0.0.0", "latest", "^1.0.0"} {
+		if exactVersion(model.Dependency{Ecosystem: "npm", Specifier: version}) {
+			t.Fatalf("npm non-exact version accepted: %s", version)
+		}
+	}
+	if !exactVersion(model.Dependency{Ecosystem: "npm", Specifier: "1.0.0"}) {
+		t.Fatal("canonical npm exact version rejected")
+	}
+	if !policyVersionEqual("pypi", "1.0.0", "1") {
+		t.Fatal("single release-segment rule did not normalize")
+	}
+	if policyVersionEqual("pypi", "1.0", "1.0.1") {
+		t.Fatal("different Python versions collapsed")
+	}
+}
+
+func TestIntegrityRequiresCanonicalBase64(t *testing.T) {
+	canonical := "sha512-" + base64.StdEncoding.EncodeToString(make([]byte, 64))
+	if !validArtifactHash(canonical) {
+		t.Fatal("canonical SHA-512 rejected")
+	}
+	noncanonical := canonical[:len(canonical)-3] + "B=="
+	if validArtifactHash(noncanonical) {
+		t.Fatal("equivalent noncanonical digest could bypass a prohibited hash")
+	}
+}

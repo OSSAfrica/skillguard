@@ -227,11 +227,10 @@ func (p Policy) validate() error {
 		return invalid
 	}
 
-	for _, r := range p.ProhibitedPackages {
-		if (r.Ecosystem != "npm" && r.Ecosystem != "pypi") || r.Name == "" || len(r.Name) > 214 || len(r.Version) > 128 {
-			return invalid
-		}
+	if !validPackageRules(p.ProhibitedPackages) {
+		return invalid
 	}
+
 	for _, h := range p.ProhibitedArtifactHashes {
 		if !validArtifactHash(h) {
 			return invalid
@@ -248,6 +247,18 @@ func (p Policy) validate() error {
 		v.Close()
 	}
 	return nil
+}
+
+func validPackageRules(rules []PackageRule) bool {
+	for _, r := range rules {
+		if (r.Ecosystem != "npm" && r.Ecosystem != "pypi") || r.Name == "" || len(r.Name) > 214 || len(r.Version) > 128 {
+			return false
+		}
+		if r.Version != "" && ((r.Ecosystem == "npm" && !npmExactVersion.MatchString(r.Version)) || (r.Ecosystem == "pypi" && !pythonPolicyVersion.MatchString(r.Version))) {
+			return false
+		}
+	}
+	return true
 }
 
 func validBaselines(baselines []Baseline) bool {
