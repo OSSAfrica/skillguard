@@ -17,8 +17,9 @@ The native plugin package is version 0.1.0.
 model. It checks actual SkillGuard tool results and then runs a harmless touch
 command in a temporary workspace. The marker must appear: the standard plugin
 must preserve ordinary coding tools rather than silently applying strict mode.
-No npm/pip package is installed and no paid model inference is used. Native plugin
-installation may fetch the explicitly selected Git package; clients also use
+No packages from the scanned documentation are installed, and no paid model
+inference is used. Native plugin installation fetches the explicitly selected
+Git package; runtime setup downloads the pinned engine archive. Clients also use
 normal caches/logs. This is not a network-isolation test.
 
 Claude uses a temporary `CLAUDE_CONFIG_DIR`, performs native marketplace
