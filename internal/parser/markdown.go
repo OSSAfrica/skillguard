@@ -83,7 +83,7 @@ func ParseSkillFile(path string) (*model.SkillMetadata, string, error) {
 }
 
 func extractFrontmatter(content string) (*Frontmatter, string, error) {
-	content = strings.TrimSpace(content)
+	content = strings.TrimSpace(strings.TrimPrefix(content, "\ufeff"))
 
 	if !strings.HasPrefix(content, "---") {
 		return nil, "", ErrNoFrontmatter
@@ -247,7 +247,7 @@ func classifyFile(path string, explicit bool) (FoundFile, bool) {
 
 	name := strings.ToLower(filepath.Base(path))
 	isSkillName := name == "skill.md" || name == "skills.md"
-	hasFrontmatter := strings.HasPrefix(strings.TrimSpace(string(content)), "---")
+	hasFrontmatter := strings.HasPrefix(strings.TrimSpace(strings.TrimPrefix(string(content), "\ufeff")), "---")
 
 	if hasFrontmatter && (explicit || isSkillName) {
 		return FoundFile{Path: path, FileType: FileTypeSkill}, true

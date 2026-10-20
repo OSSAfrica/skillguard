@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"skillguard/internal/model"
@@ -181,11 +182,32 @@ func TestExpandPath(t *testing.T) {
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home)
 
-	if got, want := expandPath("~/skills"), filepath.Join(home, "skills"); got != want {
-		t.Errorf("expandPath(~/skills) = %q, want %q", got, want)
+	backslashWant := `~\skills`
+	if runtime.GOOS == "windows" {
+		backslashWant = filepath.Join(home, "skills")
 	}
-	if got := expandPath("/absolute/path"); got != "/absolute/path" {
-		t.Errorf("expandPath left an absolute path alone: %q", got)
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{"~", home},
+		{"~/", home},
+		{"~/skills", filepath.Join(home, "skills")},
+		{`~\skills`, backslashWant},
+		{"~alice/skills", "~alice/skills"},
+		{"~alice", "~alice"},
+		{"./skills", "./skills"},
+		{"a/b", "a/b"},
+		{"/absolute/path", "/absolute/path"},
+		{"//server/share", "//server/share"},
+		{"", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			if got := expandPath(tt.input); got != tt.want {
+				t.Errorf("expandPath(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
 	}
 }
 
