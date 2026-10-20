@@ -34,6 +34,11 @@ jobs:
       - name: Test OpenCode quarantine plugin
         run: node --test integrations/clients/opencode-plugin/test.mjs
 
+      - name: Test native plugin runtime and packaging
+        run: |
+          python3 -I -m unittest discover -s integrations/plugins -p 'test_*.py' -v
+          node --test integrations/plugins/test_opencode.mjs
+
       - name: Run lint
         run: go vet ./...
 

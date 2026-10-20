@@ -72,6 +72,17 @@ class RuntimeContracts(unittest.TestCase):
                 self.assertEqual(runtime.main(), 2)
                 download.assert_not_called()
 
+    def test_new_version_cannot_reuse_the_old_cache_or_download_implicitly(self):
+        old = runtime.location(str(self.base), self.lock, self.selected)
+        old.mkdir(parents=True)
+        (old / 'fixture.tar.gz').write_bytes(self.data)
+        (old / 'skillguard').write_bytes(self.binary)
+        new_lock = dict(self.lock, version='0.14.0')
+        with patch.object(runtime, 'selection', return_value=(new_lock, self.selected)), patch.object(runtime, 'download') as download, patch('sys.argv', ['runtime.py','status','--cache-dir',str(self.base)]), patch('sys.stdout', new_callable=io.StringIO):
+            self.assertEqual(runtime.main(), 2)
+            download.assert_not_called()
+        self.assertEqual(runtime.installed(old,self.selected), old / 'skillguard')
+
     def test_workspace_cache_and_symlink_binary_are_rejected(self):
         with self.assertRaises(runtime.Unavailable):
             runtime.location(str(Path.cwd() / 'malicious-cache'), self.lock, self.selected)

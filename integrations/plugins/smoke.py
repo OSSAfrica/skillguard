@@ -85,7 +85,7 @@ def probe(client, package):
             for key in ['OPENCODE_CONFIG','OPENCODE_CONFIG_DIR','OPENCODE_CLI_CONFIG_CONTENT']:
                 env.pop(key,None)
             env['OPENCODE_CONFIG_PROJECT_DISABLE'] = 'true'
-            env['OPENCODE_CONFIG_CONTENT'] = json.dumps({'model':'fixture/fixture','small_model':'fixture/fixture','enabled_providers':['fixture'],'provider':{'fixture':{'npm':'@ai-sdk/openai-compatible','options':{'baseURL':url+'/v1','apiKey':'synthetic-fixture'},'models':{'fixture':{'name':'fixture','limit':{'context':1000000,'output':4096}}}}},'plugins':[package.as_uri()]})
+            env['OPENCODE_CONFIG_CONTENT'] = json.dumps({'model':'fixture/fixture','small_model':'fixture/fixture','enabled_providers':['fixture'],'provider':{'fixture':{'npm':'@ai-sdk/openai-compatible','options':{'baseURL':url+'/v1','apiKey':'synthetic-fixture'},'models':{'fixture':{'name':'fixture','limit':{'context':1000000,'output':4096}}}}},'plugins':[package.as_uri() if isinstance(package,Path) else package]})
             command = ['opencode','run','--standalone','--auto','--model','fixture/fixture','--agent','build','--format','json','Run the synthetic native plugin test, then stop.']
         process = None
         try:
@@ -100,6 +100,8 @@ def probe(client, package):
             if process and process.poll() is None:
                 os.killpg(process.pid,signal.SIGKILL)
                 process.communicate()
+            if client == 'claude':
+                subprocess.run(['claude','plugin','uninstall',PLUGIN,'--json'],env=env,cwd=work,capture_output=True,timeout=30,check=True)
             server.shutdown()
             server.server_close()
 
@@ -108,10 +110,11 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--client',action='append',choices=['claude','codex','opencode'])
     parser.add_argument('--opencode-plugin',default=str(ROOT / 'plugins/skillguard'))
+    parser.add_argument('--opencode-package',help='Pinned package specifier to test the package-manager copy')
     args = parser.parse_args()
     failed = False
     for client in args.client or ['claude','codex','opencode']:
-        result = probe(client,Path(args.opencode_plugin).resolve(strict=True))
+        result = probe(client,args.opencode_package or Path(args.opencode_plugin).resolve(strict=True))
         print(json.dumps(result),flush=True)
         failed |= not result['passed']
     return int(failed)
