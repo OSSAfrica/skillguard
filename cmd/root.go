@@ -26,14 +26,15 @@ Documentation: https://github.com/OSSAfrica/skillguard`,
 }
 
 // Execute runs the CLI and maps its result to an exit code:
-// 0 success, 1 skills below the threshold, 2 execution error.
+// 0 requested checks complete/pass, 1 score/reference findings, 2 incomplete or
+// execution error. None of these codes certify artifact safety.
 func Execute() {
 	err := rootCmd.Execute()
 	if err == nil {
 		return
 	}
 
-	if errors.Is(err, errSkillsFailed) {
+	if errors.Is(err, errSkillsFailed) || errors.Is(err, errReferencesFailed) {
 		os.Exit(1)
 	}
 

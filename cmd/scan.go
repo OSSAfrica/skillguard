@@ -50,6 +50,8 @@ func init() {
 	scanCmd.Flags().StringVarP(&format, "format", "f", "text",
 		"Output format: text, json, or markdown")
 	scanCmd.Flags().StringVar(&stdinSource, "source", "stdin", "Display identity for stdin (optional; never fetched or used as a local path)")
+	scanCmd.Flags().BoolVar(&verifyReferences, "verify-references", false, "Opt in to reference metadata checks using an explicit operator policy")
+	scanCmd.Flags().StringVar(&verificationPolicy, "verification-policy", "", "Path to trusted verification policy JSON (never auto-discovered)")
 
 	rootCmd.AddCommand(scanCmd)
 }
@@ -73,6 +75,13 @@ func runScan(cmd *cobra.Command, args []string) error {
 	if format != "text" && format != "json" && format != "markdown" {
 		return fmt.Errorf("unsupported output format: use text, json, or markdown")
 	}
+	verifier, err := configuredVerifier()
+	if err != nil {
+		return err
+	}
+	if verifier != nil {
+		defer verifier.Close()
+	}
 
 	paths := resolveScanPaths(args, scanPath, cfg)
 	if cmd.Flags().Changed("source") {
@@ -89,6 +98,11 @@ func runScan(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+	if verifier != nil {
+		for i := range report.Results {
+			report.Results[i].Verification = verifier.Verify(cmd.Context(), report.Results[i].Extraction)
+		}
+	}
 
 	if !quietMode {
 		for _, w := range warnings {
@@ -102,6 +116,13 @@ func runScan(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	if err := renderScanReport(cmd, report); err != nil {
+		return err
+	}
+	return scanOutcome(report)
+}
+
+func renderScanReport(cmd *cobra.Command, report *model.ScanReport) error {
 	if outputFile != "" {
 		switch format {
 		case "json":
@@ -147,13 +168,16 @@ func runScan(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	return scanOutcome(report)
+	return nil
 }
 
 // scanOutcome turns a finished report into the command's result.
 func scanOutcome(report *model.ScanReport) error {
 	if len(report.CoverageGaps) > 0 {
 		return errIncompleteScan
+	}
+	if err := verificationOutcome(report); err != nil {
+		return err
 	}
 	if report.Failed > 0 {
 		return errSkillsFailed
@@ -339,9 +363,9 @@ func printColoredReport(report *model.ScanReport) {
 	fmt.Println()
 
 	fmt.Printf("Scanned: %d skills | Threshold: %d | ", report.TotalSkills, report.Threshold)
-	if len(report.CoverageGaps) > 0 {
+	if len(report.CoverageGaps) > 0 || errors.Is(verificationOutcome(report), errVerificationIncomplete) {
 		color.Yellow("INCOMPLETE")
-	} else if report.Failed == 0 {
+	} else if report.Failed == 0 && verificationOutcome(report) == nil {
 		color.Green("PASSED")
 	} else {
 		color.Red("FAILED")
@@ -387,6 +411,7 @@ func printSkillResult(r *model.AnalysisResult, verbose bool) {
 		}
 	}
 	printExtraction(r, verbose)
+	printVerification(r, verbose)
 
 	hasDetailedBreakdown := false
 	for _, cs := range r.CategoryScores {

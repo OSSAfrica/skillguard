@@ -71,16 +71,17 @@ type SkillMetadata struct {
 }
 
 type AnalysisResult struct {
-	SkillName      string          `json:"skill_name"`
-	FilePath       string          `json:"file_path"`
-	OverallScore   int             `json:"overall_score"`
-	Passed         bool            `json:"passed"`
-	IsReference    bool            `json:"is_reference"`
-	CriticalCount  int             `json:"critical_count"`
-	Findings       []Finding       `json:"findings"`
-	Metadata       SkillMetadata   `json:"metadata"`
-	CategoryScores []CategoryScore `json:"category_scores"`
-	Extraction     *Extraction     `json:"extraction,omitempty"`
+	SkillName      string                 `json:"skill_name"`
+	FilePath       string                 `json:"file_path"`
+	OverallScore   int                    `json:"overall_score"`
+	Passed         bool                   `json:"passed"`
+	IsReference    bool                   `json:"is_reference"`
+	CriticalCount  int                    `json:"critical_count"`
+	Findings       []Finding              `json:"findings"`
+	Metadata       SkillMetadata          `json:"metadata"`
+	CategoryScores []CategoryScore        `json:"category_scores"`
+	Extraction     *Extraction            `json:"extraction,omitempty"`
+	Verification   *ReferenceVerification `json:"verification,omitempty"`
 }
 
 type ScanReport struct {

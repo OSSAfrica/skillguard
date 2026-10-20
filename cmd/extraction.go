@@ -61,6 +61,7 @@ func extractionMarkdown(report *model.ScanReport) string {
 			fmt.Fprintf(&out, "- Coverage: **%s**, line %d — %s\n", gap.Code, gap.Location.StartLine, markdownText(gap.Message))
 		}
 	}
+	out.WriteString(verificationMarkdown(report))
 	return out.String()
 }
 
