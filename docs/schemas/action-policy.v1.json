@@ -82,6 +82,40 @@
         "required": [
           "ecosystem",
           "name"
+        ],
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "ecosystem": {
+                  "const": "npm"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "version": {
+                  "pattern": "^(?:$|(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*))$"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "ecosystem": {
+                  "const": "pypi"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "version": {
+                  "pattern": "^(?:$|[0-9]+(?:\\.[0-9]+){0,3})$"
+                }
+              }
+            }
+          }
         ]
       },
       "maxItems": 256

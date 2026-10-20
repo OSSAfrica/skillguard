@@ -174,16 +174,23 @@ func (e *evaluation) addDependency(c *model.DocumentCommand, dep model.Dependenc
 		}
 	}
 	for _, rule := range e.policy.ProhibitedPackages {
-		if dep.Ecosystem == rule.Ecosystem && normalizeName(dep.Ecosystem, dep.Name) == normalizeName(rule.Ecosystem, rule.Name) && (rule.Version == "" || strings.TrimPrefix(dep.Specifier, "==") == rule.Version || dep.Specifier == rule.Version) {
+		if dep.Ecosystem == rule.Ecosystem && normalizeName(dep.Ecosystem, dep.Name) == normalizeName(rule.Ecosystem, rule.Name) && (rule.Version == "" || policyVersionEqual(dep.Ecosystem, strings.TrimPrefix(dep.Specifier, "=="), rule.Version)) {
 			e.deny("SG_PACKAGE_PROHIBITED", "A dependency is prohibited by operator policy.")
 		}
 	}
 }
 
+var npmExactVersion = regexp.MustCompile(`^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$`)
+
+var pythonPolicyVersion = regexp.MustCompile(`^[0-9]+(?:\.[0-9]+){0,3}$`)
+
 var stableVersion = regexp.MustCompile(`^[0-9]+(?:\.[0-9]+){1,3}$`)
 
 func exactVersion(dep model.Dependency) bool {
 	spec := dep.Specifier
+	if dep.Ecosystem == "npm" {
+		return npmExactVersion.MatchString(spec)
+	}
 	if dep.Ecosystem == "pypi" {
 		if !strings.HasPrefix(spec, "==") || strings.HasPrefix(spec, "===") {
 			return false
@@ -209,7 +216,7 @@ func validArtifactHash(h string) bool {
 	}
 	if strings.HasPrefix(h, "sha512-") {
 		b, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(h, "sha512-"))
-		return err == nil && len(b) == 64
+		return err == nil && len(b) == 64 && base64.StdEncoding.EncodeToString(b) == strings.TrimPrefix(h, "sha512-")
 	}
 	return false
 }
@@ -410,4 +417,26 @@ func sortedInputNames(inputs inputSet) []string {
 	}
 	sort.Strings(names)
 	return names
+}
+
+// Stable PEP 440 release segments compare numerically with zero padding. Keep
+// this limited to the same numeric subset accepted by exactVersion.
+func policyVersionEqual(ecosystem, left, right string) bool {
+	if ecosystem != "pypi" || !pythonPolicyVersion.MatchString(left) || !pythonPolicyVersion.MatchString(right) {
+		return left == right
+	}
+	return pythonReleaseKey(left) == pythonReleaseKey(right)
+}
+func pythonReleaseKey(version string) string {
+	parts := strings.Split(version, ".")
+	for i, p := range parts {
+		parts[i] = strings.TrimLeft(p, "0")
+		if parts[i] == "" {
+			parts[i] = "0"
+		}
+	}
+	for len(parts) > 1 && parts[len(parts)-1] == "0" {
+		parts = parts[:len(parts)-1]
+	}
+	return strings.Join(parts, ".")
 }
