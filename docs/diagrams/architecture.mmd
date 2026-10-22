@@ -1,0 +1,103 @@
+%% Based on https://gitdiagram.com/ossafrica/skillguard
+%% Maintained source map: launchers restrict clients; guard.py dispatches mapped argv.
+flowchart TD
+
+subgraph group_scan["Document scanning"]
+  node_parser["Document parser<br/>[markdown.go]"]
+  node_scorer["Risk scorer<br/>[scorer.go]"]
+  node_extract["Command extraction<br/>[commands.go]"]
+  node_arguments["Argument parsing<br/>[arguments.go]"]
+  node_report["Scan report<br/>[types.go]"]
+  node_verification["Reference verification<br/>[verify.go]"]
+  node_metadata["Registry metadata<br/>[metadata.go]"]
+  node_network["Network broker<br/>[network.go]"]
+end
+
+subgraph group_decision["Action decisions"]
+  node_assessment["Action assessment<br/>[evaluate.go]"]
+  node_inputs["Input resolution<br/>[inputs.go]"]
+  node_assessment_json["Policy and JSON validation<br/>[json.go]"]
+end
+
+subgraph group_interfaces["Agent interfaces"]
+  node_cli["CLI scan<br/>[scan.go]"]
+  node_mcp["Local MCP server<br/>[server.go]"]
+  node_mcp_command["MCP commands<br/>[mcp.go]"]
+  node_native_plugin["OpenCode native plugin<br/>[index.mjs]"]
+  node_python_runtime["Shared plugin runtime<br/>[runtime.py]"]
+  node_launcher["Protected launchers<br/>[launch.py]"]
+end
+
+subgraph group_runtime["Optional controlled execution"]
+  node_gate["Controlled install tool<br/>[mcp_install.go]"]
+  node_guard["Revalidation and dispatch<br/>[guard.py]"]
+  node_install_runtime["Mapped installer<br/>operator-provided isolation"]
+  node_withheld["Withhold execution"]
+end
+
+node_operator(("Operator"))
+node_documents["Skills and docs"]
+node_package_registry[("Package registries")]
+node_dns["DNS services"]
+
+node_operator -->|"runs scan"| node_cli
+node_documents -->|"supplies files"| node_cli
+node_cli -->|"parses inputs"| node_parser
+node_cli -->|"analyzes content"| node_scorer
+node_cli -->|"extracts commands"| node_extract
+node_extract -->|"parses arguments"| node_arguments
+node_cli -->|"emits findings"| node_report
+node_cli -.->|"explicit policy opt-in"| node_verification
+node_verification -->|"looks up packages"| node_metadata
+node_metadata -->|"bounded HTTPS"| node_network
+node_network -->|"queries metadata"| node_package_registry
+node_verification -.->|"approved destination DNS only"| node_dns
+node_operator -->|"supplies protected policy and context"| node_assessment
+node_assessment -->|"validates JSON and policy"| node_assessment_json
+node_assessment -->|"resolves dependencies"| node_inputs
+node_assessment -.->|"when metadata required"| node_verification
+node_operator -->|"starts MCP"| node_mcp_command
+node_mcp_command -->|"serves tools"| node_mcp
+node_mcp_command -->|"document tool shares scan pipeline"| node_cli
+node_mcp_command -.->|"fixed policy and context configured"| node_assessment
+node_native_plugin -->|"launches runtime"| node_python_runtime
+node_python_runtime -->|"starts scan-only MCP"| node_mcp_command
+node_launcher -->|"restricts native executors; starts MCP"| node_mcp_command
+node_mcp_command -.->|"all protected guard flags configured"| node_gate
+node_gate -->|"exact argv; fixed runtime"| node_guard
+node_guard -->|"assesses each call"| node_assessment
+node_assessment -->|"decision and bindings"| node_guard
+node_guard -->|"fresh complete allow; hashes unchanged"| node_install_runtime
+node_guard -->|"review, deny, partial, error or changed"| node_withheld
+node_install_runtime -.->|"installs package"| node_package_registry
+
+click node_cli "https://github.com/ossafrica/skillguard/blob/main/cmd/scan.go"
+click node_parser "https://github.com/ossafrica/skillguard/blob/main/internal/parser/markdown.go"
+click node_scorer "https://github.com/ossafrica/skillguard/blob/main/internal/analyzer/scorer.go"
+click node_extract "https://github.com/ossafrica/skillguard/blob/main/internal/extract/commands.go"
+click node_arguments "https://github.com/ossafrica/skillguard/blob/main/internal/extract/arguments.go"
+click node_report "https://github.com/ossafrica/skillguard/blob/main/internal/model/types.go"
+click node_verification "https://github.com/ossafrica/skillguard/blob/main/internal/verify/verify.go"
+click node_metadata "https://github.com/ossafrica/skillguard/blob/main/internal/verify/metadata.go"
+click node_network "https://github.com/ossafrica/skillguard/blob/main/internal/verify/network.go"
+click node_assessment "https://github.com/ossafrica/skillguard/blob/main/internal/assess/evaluate.go"
+click node_inputs "https://github.com/ossafrica/skillguard/blob/main/internal/assess/inputs.go"
+click node_assessment_json "https://github.com/ossafrica/skillguard/blob/main/internal/assess/json.go"
+click node_mcp "https://github.com/ossafrica/skillguard/blob/main/internal/mcp/server.go"
+click node_mcp_command "https://github.com/ossafrica/skillguard/blob/main/cmd/mcp.go"
+click node_native_plugin "https://github.com/ossafrica/skillguard/blob/main/plugins/skillguard/index.mjs"
+click node_python_runtime "https://github.com/ossafrica/skillguard/blob/main/plugins/skillguard/runtime.py"
+click node_launcher "https://github.com/ossafrica/skillguard/blob/main/integrations/clients/launch.py"
+click node_gate "https://github.com/ossafrica/skillguard/blob/main/cmd/mcp_install.go"
+click node_guard "https://github.com/ossafrica/skillguard/blob/main/examples/harness/guard.py"
+
+classDef toneBlue fill:#dbeafe,stroke:#2563eb,stroke-width:1.5px,color:#172554
+classDef toneAmber fill:#fef3c7,stroke:#d97706,stroke-width:1.5px,color:#78350f
+classDef toneMint fill:#dcfce7,stroke:#16a34a,stroke-width:1.5px,color:#14532d
+classDef toneRose fill:#ffe4e6,stroke:#e11d48,stroke-width:1.5px,color:#881337
+classDef toneIndigo fill:#e0e7ff,stroke:#4f46e5,stroke-width:1.5px,color:#312e81
+class node_parser,node_scorer,node_extract,node_arguments,node_report,node_verification,node_metadata,node_network toneBlue
+class node_assessment,node_inputs,node_assessment_json,node_package_registry toneAmber
+class node_cli,node_mcp,node_mcp_command,node_native_plugin,node_python_runtime,node_launcher toneMint
+class node_gate,node_guard,node_install_runtime,node_withheld toneRose
+class node_operator,node_documents,node_dns toneIndigo
