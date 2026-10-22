@@ -1,4 +1,4 @@
-FROM cgr.dev/chainguard/go@sha256:73e9c0d70c92c160e5e4c649531f6ef7fb0c8a9c3308cfe3534afb669ac52567 AS builder
+FROM cgr.dev/chainguard/go@sha256:92fa6538c060088fb3aa7e87e4d4e916b7f58c6cdcb4aa25b16433e0f324dfbd AS builder
 
 ARG VERSION=dev
 
@@ -10,7 +10,7 @@ RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w -X skillguard/cmd.Version=${VERSION}" -o skillguard .
 
-FROM cgr.dev/chainguard/static@sha256:fe55470f22d3259488d9d3739168d8f04da67755f0b69382bc26eda4a7d3d327
+FROM cgr.dev/chainguard/static@sha256:17367e4d3ae2b46c3290858e483fac09be085c92b372360fe3bf6a6150848fde
 
 COPY --from=builder /app/skillguard /skillguard
 
