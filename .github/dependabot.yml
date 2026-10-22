@@ -13,6 +13,10 @@ updates:
   # GitHub Actions
   - package-ecosystem: "github-actions"
     directory: "/"
+    groups:
+      codeql:
+        patterns:
+          - "github/codeql-action/*"
     schedule:
       interval: "weekly"
     labels:
