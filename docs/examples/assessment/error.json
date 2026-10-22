@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "engine_version": "example",
+  "ruleset_version": "action-v1",
+  "assessed_at": "2026-10-20T12:00:00Z",
+  "expires_at": "2026-10-20T12:00:00Z",
+  "status": "error",
+  "decision": "deny",
+  "policy_id": "",
+  "policy_version": "",
+  "policy_fingerprint": "",
+  "subject_fingerprint": "",
+  "context_fingerprint": "",
+  "evidence_fingerprint": "",
+  "decision_fingerprint": "",
+  "evidence_trust": "untrusted_data",
+  "rules": [
+    {
+      "id": "SG_REQUEST_INVALID",
+      "effect": "deny",
+      "message": "Assessment could not be completed.",
+      "remediation": "Correct the request or operator configuration and reassess.",
+      "location": {
+        "source": "",
+        "start_line": 0,
+        "end_line": 0
+      }
+    }
+  ],
+  "checks": [
+    {
+      "id": "request_policy",
+      "required": true,
+      "status": "error"
+    }
+  ],
+  "inputs": [],
+  "dependencies": []
+}

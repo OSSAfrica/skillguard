@@ -9,391 +9,335 @@
 [![Configuration](https://img.shields.io/badge/configuration-A-gold?style=flat-square&labelColor=3443F4&color=04B45F)](https://github.com/OSSAfrica/skillguard/actions)
 [![CVEs](https://img.shields.io/badge/cves-A%2B-gold?style=flat-square&labelColor=3443F4&color=04B45F)](https://github.com/OSSAfrica/skillguard/actions)
 [![OpenSSF Scorecard](https://img.shields.io/ossf-scorecard/github.com/OSSAfrica/skillguard?label=OpenSSF)](https://securityscorecards.dev/details/github.com/OSSAfrica/skillguard)
+[![Architecture diagram](https://gitdiagram.com/diagram-badge.svg)](https://gitdiagram.com/ossafrica/skillguard?utm_source=readme&utm_medium=badge)
 
-SkillGuard is a security scanner for AI agent "skills" defined in Markdown. It evaluates skill definitions for security
-risks, malicious intents, and supply chain vulnerabilities, providing transparency to developers and end-users.
+Scan AI agent skills and documentation for prompt injection, risky commands and
+supply-chain risks. Assess proposed installs with explicit policy, and connect those
+decisions to a controlled execution gate when your harness needs enforcement.
 
-## Why SkillGuard?
+[Get started](#get-started) · [How it works](#how-it-works) ·
+[Documentation](docs/README.md) · [Contribute](CONTRIBUTING.md)
 
-AI Agents are only as safe as the skills they are given. As the ecosystem of AI agents grows, so does the risk of:
+> A scan is evidence, not execution permission. Package existence and a passing score do
+> not establish that a package is legitimate or safe.
 
-- **Malicious skills** - Skills designed to exfiltrate data or perform harmful actions
-- **Prompt injection** - Skills that can be manipulated to ignore safety guidelines
-- **Supply chain attacks** - Compromised skill repositories
-- **Excessive permissions** - Skills requesting unnecessary system access
+## Get started
 
-SkillGuard provides the first line of defense by analyzing skill definitions before they're loaded into an agent.
+Choose the integration that matches your workflow:
 
-## Features
+| What you need                                 | Start here                                         | Execution boundary                                          |
+| --------------------------------------------- | -------------------------------------------------- | ----------------------------------------------------------- |
+| Review docs in Claude Code, Codex or OpenCode | [Native plugins](docs/native-plugins.md)           | Advisory scanning; ordinary agent tools remain available    |
+| Scan files locally or in CI                   | [Install the CLI](#install-the-cli)                | Reports and exit codes; no command interception             |
+| Restrict a coding agent's command tools       | [Protected launchers](docs/client-integrations.md) | Removes general executors; optional controlled install tool |
+| Enforce decisions in your own harness         | [Harness integration](docs/harness-integration.md) | Operator-configured gate and isolated runtime required      |
 
-- **YAML frontmatter parsing** - Extracts skill metadata from Markdown files
-- **Multi-category security scoring** - Weighted scoring with exponential decay
-- **Risk detection**:
-    - Shell command execution patterns
-    - Credential and secret exposure
-    - Unrestricted tool access (wildcards)
-    - Prompt injection (instruction override, secrecy directives, hidden instructions)
-    - Untrusted external URLs
-    - Obfuscated code (eval, Function, setTimeout)
-    - HTTP/Git dependencies
-    - Hidden characters (zero-width, RTL override, homoglyphs)
-    - Referenced script analysis (scans .py, .js, .ts, .sh files)
-    - Missing metadata (transparency gaps)
-- **CI/CD integration** - Threshold-based exit codes for automated pipelines
-- **Multiple output formats** - Colored CLI output and JSON reports
-- **Configurable** - Custom thresholds, paths, and trusted domains
+### Native plugins
 
-## How It Works
+Python 3.10+ must be available as `python3`. No Go installation or repository checkout
+is needed.
+
+**Claude Code**
+
+```sh
+claude plugin marketplace add OSSAfrica/skillguard
+claude plugin install skillguard@ossafrica-skillguard
+```
+
+**Codex**
+
+```sh
+codex plugin marketplace add OSSAfrica/skillguard
+codex plugin add skillguard@ossafrica-skillguard
+```
+
+**OpenCode 2**
+
+```sh
+opencode plugin add 'github:OSSAfrica/skillguard#4a5108c85d40def32cde720d094b2afce2f6433e::path:plugins/skillguard'
+```
+
+Restart your agent, run the plugin's setup workflow, then check status before reviewing
+a file. See the [native plugin guide](docs/native-plugins.md) for each agent's commands,
+verified runtime setup, updates and removal.
+
+The standard plugin is **advisory**. It does not automatically scan every file,
+intercept commands or install enforcement hooks.
+
+## How it works
+
+SkillGuard separates document analysis from action assessment and execution.
 
 ```mermaid
 flowchart TD
+  docs["Untrusted skills, Markdown and llms.txt"] --> scan["Static scan and command extraction"]
+  plugin["Native plugin or local MCP"] -->|"document content"| scan
+  cli["CLI or CI"] -->|"files or stdin"| scan
+  scan --> report["Findings, scores, references and coverage gaps"]
+  scan -.->|"explicit CLI opt-in"| metadata["Policy-limited registry and DNS checks"]
+  metadata --> report
 
-subgraph group_cli["CLI orchestration"]
-  node_cli_entry["CLI entry<br/>[main.go]"]
-  node_command_dispatcher["Command dispatcher<br/>[root.go]"]
-  node_scan_command["Scan command<br/>[scan.go]"]
-  node_path_resolver["Path resolver<br/>[scan.go]"]
-  node_analysis_orchestrator["File analyzer<br/>[scan.go]"]
-end
-
-subgraph group_input["Input processing"]
-  node_file_discovery["File discovery<br/>[markdown.go]"]
-  node_markdown_parser["Markdown parser<br/>[markdown.go]"]
-  node_reference_extractor["Reference extractor<br/>[scorer.go]"]
-end
-
-subgraph group_analysis["Security analysis"]
-  node_security_scorer["Security scorer<br/>[scorer.go]"]
-  node_risk_detectors["Risk detectors<br/>[scorer.go]"]
-  node_score_calculator["Score calculator<br/>[scorer.go]"]
-  node_result_model["Analysis results<br/>[types.go]"]
-end
-
-subgraph group_output["Results and config"]
-  node_config_manager["Config manager<br/>[config.go]"]
-  node_report_renderer["Report renderer<br/>[scan.go]"]
-  node_json_writer["JSON writer<br/>[scan.go]"]
-  node_exit_status["Exit status<br/>[root.go]"]
-end
-
-node_developer(("Developer"))
-node_ci(("CI pipeline"))
-node_skill_files["Skill files"]
-node_config_file[("Config file")]
-
-node_developer -->|"invokes"| node_cli_entry
-node_ci -.->|"invokes"| node_cli_entry
-node_cli_entry -->|"starts"| node_command_dispatcher
-node_command_dispatcher -->|"dispatches scan"| node_scan_command
-node_command_dispatcher -->|"dispatches config"| node_config_manager
-node_scan_command -->|"loads config"| node_config_manager
-node_config_manager -->|"reads or writes"| node_config_file
-node_scan_command -->|"resolves paths"| node_path_resolver
-node_path_resolver -->|"selects inputs"| node_file_discovery
-node_file_discovery -->|"scans files"| node_skill_files
-node_scan_command -->|"analyzes files"| node_analysis_orchestrator
-node_analysis_orchestrator -->|"parses skills"| node_markdown_parser
-node_analysis_orchestrator -.->|"extracts references"| node_reference_extractor
-node_analysis_orchestrator -->|"analyzes content"| node_security_scorer
-node_reference_extractor -.->|"analyzes references"| node_security_scorer
-node_security_scorer -->|"runs checks"| node_risk_detectors
-node_security_scorer -->|"calculates scores"| node_score_calculator
-node_security_scorer -->|"builds findings"| node_result_model
-node_scan_command -->|"prints report"| node_report_renderer
-node_scan_command -.->|"writes JSON"| node_json_writer
-node_scan_command -->|"checks outcome"| node_exit_status
-node_command_dispatcher -->|"maps result"| node_exit_status
-node_report_renderer -->|"shows results"| node_developer
-node_json_writer -.->|"exports report"| node_developer
-node_exit_status -.->|"returns status"| node_ci
-
-click node_cli_entry "https://github.com/ossafrica/skillguard/blob/main/main.go"
-click node_command_dispatcher "https://github.com/ossafrica/skillguard/blob/main/cmd/root.go"
-click node_scan_command "https://github.com/ossafrica/skillguard/blob/main/cmd/scan.go"
-click node_path_resolver "https://github.com/ossafrica/skillguard/blob/main/cmd/scan.go"
-click node_config_manager "https://github.com/ossafrica/skillguard/blob/main/cmd/config.go"
-click node_file_discovery "https://github.com/ossafrica/skillguard/blob/main/internal/parser/markdown.go"
-click node_markdown_parser "https://github.com/ossafrica/skillguard/blob/main/internal/parser/markdown.go"
-click node_reference_extractor "https://github.com/ossafrica/skillguard/blob/main/internal/analyzer/scorer.go"
-click node_analysis_orchestrator "https://github.com/ossafrica/skillguard/blob/main/cmd/scan.go"
-click node_security_scorer "https://github.com/ossafrica/skillguard/blob/main/internal/analyzer/scorer.go"
-click node_risk_detectors "https://github.com/ossafrica/skillguard/blob/main/internal/analyzer/scorer.go"
-click node_score_calculator "https://github.com/ossafrica/skillguard/blob/main/internal/analyzer/scorer.go"
-click node_result_model "https://github.com/ossafrica/skillguard/blob/main/internal/model/types.go"
-click node_report_renderer "https://github.com/ossafrica/skillguard/blob/main/cmd/scan.go"
-click node_json_writer "https://github.com/ossafrica/skillguard/blob/main/cmd/scan.go"
-click node_exit_status "https://github.com/ossafrica/skillguard/blob/main/cmd/root.go"
-
-classDef toneNeutral fill:#f8fafc,stroke:#334155,stroke-width:1.5px,color:#0f172a
-classDef toneBlue fill:#dbeafe,stroke:#2563eb,stroke-width:1.5px,color:#172554
-classDef toneAmber fill:#fef3c7,stroke:#d97706,stroke-width:1.5px,color:#78350f
-classDef toneMint fill:#dcfce7,stroke:#16a34a,stroke-width:1.5px,color:#14532d
-classDef toneRose fill:#ffe4e6,stroke:#e11d48,stroke-width:1.5px,color:#881337
-classDef toneIndigo fill:#e0e7ff,stroke:#4f46e5,stroke-width:1.5px,color:#312e81
-classDef toneTeal fill:#ccfbf1,stroke:#0f766e,stroke-width:1.5px,color:#134e4a
-class node_cli_entry,node_command_dispatcher,node_scan_command,node_path_resolver,node_analysis_orchestrator toneBlue
-class node_file_discovery,node_markdown_parser,node_reference_extractor,node_config_file toneAmber
-class node_security_scorer,node_risk_detectors,node_score_calculator,node_result_model toneMint
-class node_config_manager,node_report_renderer,node_json_writer,node_exit_status toneRose
-class node_developer,node_ci,node_skill_files toneIndigo
+  action["Exact proposed action"] --> assess["Action assessment"]
+  operator["Protected policy, context and scoped reviews"] --> assess
+  assess --> decision{"Complete decision?"}
+  decision -->|"review, deny or incomplete"| withhold["Withhold execution"]
+  decision -->|"allow"| gate["Controlled gate rechecks bindings and hashes"]
+  gate -->|"valid and unchanged"| runtime["Mapped installer in operator-provided isolation"]
+  gate -->|"stale, changed or failed"| withhold
 ```
 
-SkillGuard reads skill files and never runs them. A scan goes through four stages:
+1. **Scan untrusted content.** Parse skills and documentation, detect risky patterns,
+   and inventory supported install commands without running them.
+2. **Gather bounded evidence.** Optional CLI verification checks permitted registry/DNS
+   metadata. Missing names and uncertainty remain visible.
+3. **Assess the exact action.** Evaluate argv or supported shell text against protected
+   policy, dependency inputs, execution context and scoped reviews.
+4. **Enforce at the tool boundary.** A separate gate accepts only a fresh, complete
+   allow for the matching context and rechecks immediately before dispatch.
 
-1. **Discover** - Walks the paths you give it, following symlinked skill directories, and collects every `.md` file.
-   A `SKILL.md` with YAML frontmatter is treated as a skill. Any other Markdown file is treated as a reference document.
-2. **Parse** - Splits each skill into frontmatter metadata (name, description, allowed tools, source, triggers) and its
-   Markdown body.
-3. **Analyze** - Runs pattern-based detectors over the body and metadata: shell execution, credentials, untrusted
-   URLs, obfuscated code, piped installers, hidden characters, prompt injection, and more. Local scripts the skill
-   references are scanned too, but only if they sit inside the skill's own directory.
-4. **Score and report** - Each finding lowers one of five weighted category scores. The overall score is their
-   weighted average, and any critical finding fails the skill outright. Results are shown in the terminal or written
-   as JSON, and the exit code (`0` / `1` / `2`) tells CI whether to pass the build.
+The native plugin exposes scanning by default. Assessment and controlled installation
+require separate operator configuration. Protected launchers also restrict the client's
+native executors; adding MCP tools alone does not do that.
 
-### Design Principles
+See [Architecture](ARCHITECTURE.md) for components and trust boundaries, or the
+[agent supply-chain overview](docs/agent-supply-chain.md) for mitigation limits.
 
-- **Static only** - Skills and their scripts are read, never executed.
-- **Treat the skill as hostile** - Paths and text in a skill come from its author, so the scanner cannot be used to
-  read files outside the skill directory, and it limits how much of a referenced file it reads.
-- **Fail closed on critical risk** - A strong average never hides a critical finding.
-- **Flag commands, not prose** - Detectors look for the imperative or executable form, so documentation *about* a risk
-  is not flagged as the risk itself.
-- **No silent skips** - Anything that could not be scanned is reported as a warning, never passed quietly.
-- **Explainable scores** - Every finding records the exact deduction it caused, and more findings can never raise a
-  score.
+## Features
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) for a component-by-component walkthrough.
+- **Static detection:** prompt injection, hidden characters, shell execution,
+  credentials, obfuscated code, piped installers and risky tool permissions.
+- **Documentation inventory:** `llms.txt`, `llms-full.txt`, Markdown, explicit text
+  files and stdin, with command references and extraction coverage gaps.
+- **Reference verification:** opt-in npm/PyPI metadata and approved DNS checks under an
+  explicit operator policy; offline scanning remains the default.
+- **Action assessment:** versioned JSON `allow` / `review` / `deny` decisions bound to
+  exact actions, inputs, context and expiring operator reviews.
+- **Agent integrations:** native plugins, local MCP tools, protected launchers and a
+  reference controlled execution gate.
+- **Reports and CI:** weighted security scores, critical-finding failure, configurable
+  thresholds, and text, JSON or Markdown output.
 
-## Installation
+## Install the CLI
 
-### Binary (Recommended)
+### Release binary
 
-Download the latest release for your platform from
-the [releases page](https://github.com/OSSAfrica/skillguard/releases).
+Download a platform binary from the
+[releases page](https://github.com/OSSAfrica/skillguard/releases).
 
 ### Homebrew
 
-```bash
-brew tap ossafrica/skillguard
-
-brew install skillguard
-```
-
-Or you can also do:
-
-```bash
+```sh
 brew install ossafrica/skillguard/skillguard
-````
-
-on MacOS, after installing the command run this to allow the command to run
-without restrictions:
-
-```bash
-sudo xattr -d com.apple.quarantine $(which skillguard)
-```
-
-or
-
-```bash
-sudo xattr -d com.apple.quarantine /opt/homebrew/bin/skillguard
-```
-
-or 
-
-```bash
-sudo xattr -d com.apple.quarantine /usr/local/bin/skillguard
 ```
 
 ### Docker
 
-```bash
-# GitHub Container Registry (Chainguard-based, distroless)
+```sh
 docker pull ghcr.io/ossafrica/skillguard:latest
-
-# Or from Docker Hub
-docker pull ossafrica/skillguard:latest
+docker run --rm -v /absolute/path/to/skills:/skills:ro \
+  ghcr.io/ossafrica/skillguard:latest scan --path /skills
 ```
+
+Images are also available at `ossafrica/skillguard` on Docker Hub. Pin a reviewed
+version or image digest in automated deployments.
 
 ### Build from source
 
-```bash
+```sh
 git clone https://github.com/OSSAfrica/skillguard.git
 cd skillguard
 go build -o skillguard .
 ```
 
-## Quick Start
+## CLI quick start
 
-### Basic scan
+### Scan skills or documentation
 
-```bash
+```sh
 skillguard scan
-```
-
-### Scan specific path
-
-```bash
-skillguard scan --path ./my-skills
-
-# several paths at once
-skillguard scan --path ./my-skills,./vendor-skills
 skillguard scan ./my-skills ./vendor-skills
+skillguard scan ./docs/llms.txt --format json
+skillguard scan - --source https://docs.example.org/llms-full.txt \
+  --format json < downloaded.txt
 ```
 
-### CI/CD integration (fail if score < 70)
+The default path is `~/.agents/skills`. Directory discovery includes Markdown,
+`llms.txt` and `llms-full.txt`; explicitly named UTF-8 text files and stdin are also
+supported. The `--source` label is never fetched or used as a local path.
 
-```bash
-skillguard scan --threshold 70
-echo $?  # 0 = pass, 1 = fail, 2 = error
+Command extraction supports a bounded syntax subset. Inspect coverage gaps as well as
+findings. See [command extraction](docs/command-extraction.md).
+
+### Save a report
+
+```sh
+skillguard scan ./my-skills --output report.json
+skillguard scan ./my-skills --format markdown --output report.md
 ```
 
-### Generate JSON report
+Use `--format json` or `--format markdown` without `--output` for stdout.
 
-```bash
-skillguard scan --output report.json
+### Verify references explicitly
+
+```sh
+skillguard scan ./docs/llms.txt --format json \
+  --verify-references --verification-policy /protected/registries.json
 ```
 
-## Visual Examples
+Lookups require an explicit policy, including package-name disclosure allowlists. See
+[reference verification](docs/reference-verification.md) for private registry handling,
+network boundaries and uncertainty states.
 
-### Help Command
+### Assess a proposed action
 
-Display available commands and options:
+```sh
+skillguard assess --policy /protected/action-policy.json < request.json
+```
 
-![Help Command](vhs/skillguard-help.gif)
+See the [policy reference](docs/policies.md) for field meanings, defaults and starting
+examples.
 
-### Scanning Cloudflare Skills
+Assessment never executes. See the [action contract](docs/action-assessment.md) for
+schemas and examples, and [harness integration](docs/harness-integration.md) for the
+separate execution gate.
 
-Scan a skills directory (e.g., cloudflare skills):
+## Command reference
 
-![Scan Cloudflare](vhs/skillguard-scan-cloudflare.gif)
+| Command             | Purpose                                                     |
+| ------------------- | ----------------------------------------------------------- |
+| `skillguard scan`   | Scan local content and report findings                      |
+| `skillguard assess` | Assess an exact proposed action under explicit policy       |
+| `skillguard mcp`    | Serve local scanning and optionally configured action tools |
+| `skillguard config` | Read or update CLI defaults                                 |
 
-### Scanning AI SDK Skills
+### Common scan flags
 
-Scan the AI SDK skills directory:
+| Flag                    | Short | Purpose                                             | Default            |
+| ----------------------- | ----- | --------------------------------------------------- | ------------------ |
+| `--path`                | `-p`  | File, directory or comma-separated paths            | `~/.agents/skills` |
+| `--threshold`           | `-t`  | Minimum passing score, 0–100                        | `70` or config     |
+| `--output`              | `-o`  | Write a report file; JSON unless format is Markdown | None               |
+| `--format`              | `-f`  | `text`, `json` or `markdown`                        | `text`             |
+| `--quiet`               | `-q`  | Suppress report output                              | `false`            |
+| `--verbose`             | `-v`  | Show findings and score breakdown                   | `false`            |
+| `--source`              |       | Display label for stdin                             | `stdin`            |
+| `--verify-references`   |       | Enable policy-limited metadata checks               | `false`            |
+| `--verification-policy` |       | Explicit verification policy path                   | None               |
 
-![Scan AI SDK](vhs/skillguard-scan-ai-sdk.gif)
+Run `skillguard <command> --help` for command-specific options.
 
-### Multiple Paths with Error
+### Exit codes
 
-Scan multiple paths (comma-separated) and handle errors gracefully:
+| Code | Scan                                                              | Assessment                                          |
+| ---- | ----------------------------------------------------------------- | --------------------------------------------------- |
+| `0`  | Requested checks completed and passed                             | Complete `allow`; gate must still validate context  |
+| `1`  | Score failure, missing reference or configured intelligence match | Complete `review` or `deny`                         |
+| `2`  | Incomplete coverage, blocked/unavailable checks or error          | Partial assessment, required-check failure or error |
 
-![Multiple Paths with Error](vhs/skillguard-multiple-paths-with-error.gif)
-
-## Command Reference
-
-| Flag          | Short | Description                                              | Default            |
-|---------------|-------|----------------------------------------------------------|--------------------|
-| `--path`      | `-p`  | Path to scan (file, directory, or comma-separated paths) | `~/.agents/skills` |
-| `--threshold` | `-t`  | Minimum score to pass (0-100)                            | `70` (or config)   |
-| `--output`    | `-o`  | Output JSON report to file                               | (none)             |
-| `--quiet`     | `-q`  | Minimal output - just pass/fail status                   | `false`            |
-| `--verbose`   | `-v`  | Show all findings and detailed breakdown                 | `false`            |
-| `--format`    | `-f`  | Output format: text, json, or markdown                  | `text`             |
-
-### Exit Codes
-
-| Code | Meaning                                             |
-|------|-----------------------------------------------------|
-| `0`  | Scan completed, all skills passed threshold         |
-| `1`  | Scan completed, one or more skills failed threshold |
-| `2`  | Scan failed (file not found, parse error, etc.)     |
+A scan exit code never authorizes execution. Consumers of assessment JSON must validate
+status, decision, freshness and bindings as well as the exit code.
 
 ## Configuration
 
-SkillGuard reads configuration from `~/.skillguard.yaml`. Create or modify this file to set defaults:
+Set defaults in `~/.skillguard.yaml`:
 
 ```yaml
 default_path: ~/.agents/skills
 threshold: 70
 ```
 
-Or use the config command:
+Or use the CLI:
 
-```bash
+```sh
 skillguard config set --path ~/my-skills --threshold 80
 skillguard config show
 ```
 
-## Security Scoring
+Scan defaults are separate from protected verification and action policies.
 
-SkillGuard uses a multi-category scoring system with weighted averages. Skills start with 100 points in each category,
-with deductions based on severity and exponential decay for repeated findings. Repeated findings of the same kind cost
-progressively less, but each one still costs something: adding findings can never raise a score.
+## Security scoring
 
-### Score Categories
+SkillGuard uses a multi-category scoring system with weighted averages. Skills start
+with 100 points in each category, with deductions based on severity and exponential
+decay for repeated findings. Repeated findings of the same kind cost progressively less,
+but each one still costs something: adding findings can never raise a score.
+
+### Score categories
 
 | Category     | Weight | Description                                                  |
-|--------------|--------|--------------------------------------------------------------|
+| ------------ | ------ | ------------------------------------------------------------ |
 | Security     | 3.0    | Shell access, file access, credentials, obfuscated code      |
 | Supply Chain | 2.0    | External scripts, git/http dependencies, source verification |
 | Transparency | 1.5    | Metadata completeness, prompt injection risks                |
 | Quality      | 1.5    | Tool access patterns, allowed tools                          |
 | Maintenance  | 1.0    | Telemetry, protestware detection                             |
 
-### Severity Levels
+### Severity levels
 
 | Level    | Base Deduction | Decay Factor | 1st / 2nd / 3rd occurrence |
-|----------|----------------|--------------|----------------------------|
+| -------- | -------------- | ------------ | -------------------------- |
 | Critical | 40             | e^-0.5x      | 40 / 24.3 / 14.7           |
 | High     | 20             | e^-0.4x      | 20 / 13.4 / 9.0            |
 | Medium   | 10             | e^-0.3x      | 10 / 7.4 / 5.5             |
 | Low      | 5              | e^-0.2x      | 5 / 4.1 / 3.3              |
 
-### Detection Categories
+### Detection categories
 
-| Category          | Risk                                | Severity      |
-|-------------------|-------------------------------------|---------------|
-| Shell Execution   | Command invocations, not prose      | High          |
-| File Access       | File write/delete operations        | High          |
-| Network           | Untrusted external URLs             | Medium        |
-| Credentials       | Secret/credential references        | High          |
-| Obfuscated Code   | eval, Function, setTimeout patterns | Critical      |
-| HTTP Dependencies | curl/wget with pipe to shell        | Critical      |
-| Git Dependencies  | Git clone/fetch operations          | Medium        |
-| Hidden Characters | Zero-width and control characters   | High          |
-| Bidi Override     | Text that renders unlike it reads   | High          |
-| Mixed Script      | Cyrillic/Greek lookalikes in Latin  | Medium        |
-| Prompt Injection  | Instructions aimed at the agent     | Critical      |
-| Prompt Construction | Dynamically assembled prompts     | Medium        |
-| Supply Chain      | No source URL provided              | Low           |
-| Metadata          | Missing description/triggers        | Low           |
+| Category            | Risk                                | Severity |
+| ------------------- | ----------------------------------- | -------- |
+| Shell Execution     | Command invocations, not prose      | High     |
+| File Access         | File write/delete operations        | High     |
+| Network             | Untrusted external URLs             | Medium   |
+| Credentials         | Secret/credential references        | High     |
+| Obfuscated Code     | eval, Function, setTimeout patterns | Critical |
+| HTTP Dependencies   | curl/wget with pipe to shell        | Critical |
+| Git Dependencies    | Git clone/fetch operations          | Medium   |
+| Hidden Characters   | Zero-width and control characters   | High     |
+| Bidi Override       | Text that renders unlike it reads   | High     |
+| Mixed Script        | Cyrillic/Greek lookalikes in Latin  | Medium   |
+| Prompt Injection    | Instructions aimed at the agent     | Critical |
+| Prompt Construction | Dynamically assembled prompts       | Medium   |
+| Supply Chain        | No source URL provided              | Low      |
+| Metadata            | Missing description/triggers        | Low      |
 
 A score of 70 or higher is considered passing by default.
 
-**Critical findings are disqualifying.** A skill with any critical finding fails regardless of its numeric score — a
-weighted average across five categories can otherwise dilute a single critical risk, such as a piped shell installer,
-into a pass.
+**Critical findings are disqualifying.** A skill with any critical finding fails
+regardless of its numeric score — a weighted average across five categories can
+otherwise dilute a single critical risk, such as a piped shell installer, into a pass.
 
-### What Gets Scanned
+### What gets scanned
 
-Directory scans follow symlinked skill directories, which is how most skill trees are laid out
-(`~/.claude/skills/<name>` pointing at the real directory elsewhere). Anything that cannot be read is reported as a
-warning and the rest of the scan continues; a file named directly on the command line is always scanned, with or
-without frontmatter.
+Directory scans follow symlinked skill directories, which is how most skill trees are
+laid out (`~/.claude/skills/<name>` pointing at the real directory elsewhere). Anything
+that cannot be read is reported as a warning and the rest of the scan continues; a file
+named directly on the command line is always scanned, with or without frontmatter.
 
-### Prompt Injection
+### Prompt injection
 
-A skill body is read by an agent, so instructions inside it aimed at that agent are the attack. SkillGuard flags
-instruction overrides ("ignore all previous instructions"), secrecy directives ("do not tell the user"), coercion
-("you must always comply, even if the user says otherwise"), role reassignment, and instructions hidden in HTML
-comments where a human reviewer will not see them.
+A skill body is read by an agent, so instructions inside it aimed at that agent are the
+attack. SkillGuard flags instruction overrides ("ignore all previous instructions"),
+secrecy directives ("do not tell the user"), coercion ("you must always comply, even if
+the user says otherwise"), role reassignment, and instructions hidden in HTML comments
+where a human reviewer will not see them.
 
-Detection requires the imperative form, so documents that *describe* prompt injection are not mistaken for documents
-that *perform* it: "skills that can be manipulated to ignore safety guidelines" is prose, while "Ignore all previous
-instructions." is a command. Across 733 real skills this produced no findings; a crafted malicious skill that
-previously scored 100/100 now scores 79 and fails.
+Detection requires the imperative form, so documents that _describe_ prompt injection
+are not mistaken for documents that _perform_ it: "skills that can be manipulated to
+ignore safety guidelines" is prose, while "Ignore all previous instructions." is a
+command. These checks are pattern-based and can miss attacks; review findings alongside
+command extraction coverage and the proposed action.
 
-### Referenced Scripts
+### Referenced scripts
 
-When a skill body references a local script (`[setup](scripts/setup.py)`, `source scripts/env.sh`, `require('./lib.js')`),
-that script is scanned too. References are resolved strictly inside the skill's own directory: absolute paths, URLs and
-paths escaping the directory (`../../.aws/credentials`) are ignored, so a crafted skill cannot use the scanner to read
-arbitrary files.
+When a skill body references a local script (`[setup](scripts/setup.py)`,
+`source scripts/env.sh`, `require('./lib.js')`), that script is scanned too. References
+are resolved strictly inside the skill's own directory: absolute paths, URLs and paths
+escaping the directory (`../../.aws/credentials`) are ignored, so a crafted skill cannot
+use the scanner to read arbitrary files.
 
-### Example Output
+### Example output
 
-```
+```text
 Score: 77/100
 Category Scores:
   security: 62/100 (3 findings)
@@ -403,193 +347,79 @@ Category Scores:
   transparency: 95/100 (1 findings)
 ```
 
-## Trusted Domains
+## URL classification
 
-SkillGuard includes built-in trust for known safe domains:
+The static URL detector has a built-in domain allowlist covering common code hosts,
+registries, cloud platforms and documentation services. A match suppresses that
+detector's untrusted-URL finding; it does not establish ownership, package identity or
+permission to execute.
 
-- Code hosts: `github.com`, `gitlab.com`, `bitbucket.org`
-- Package managers: `npmjs.com`, `pypi.org`, `crates.io`
-- Cloud platforms: `vercel.app`, `vercel.sh`, `cloudflare.com`, `google.com`
-- Documentation: `github.io`, `readthedocs.io`, `netlify.app`
+Matching uses the parsed host or its subdomains. `github.com.evil.net` and
+`evil.com/?ref=github.com` do not match `github.com`. Verification has its own explicit
+operator policy; the static allowlist does not grant network access.
 
-External URLs to domains not in this list are flagged as medium-risk.
+## CI and pre-commit
 
-Trust is decided from the URL's parsed host, matching either the domain itself or a subdomain of it. A trusted name
-appearing anywhere else in the URL does not confer trust: `https://github.com.evil.net/x` and
-`https://evil.com/?ref=github.com` are both untrusted.
+Use thresholds and exit codes to fail a scan job:
 
-## Docker Usage
-
-### Scan local skills
-
-```bash
-docker run --rm -v ~/path/to/skills:/skills ghcr.io/ossafrica/skillguard scan --path /skills
+```sh
+skillguard scan ./skills --threshold 70 --format json --output report.json
 ```
 
-### CI/CD Integration
+For GitHub job summaries, Markdown output can be written directly:
 
-Copy the appropriate example to your skill repository:
-
-| Platform       | Example Location                         |
-|----------------|------------------------------------------|
-| GitHub Actions | `examples/github-actions/skill-scan.yml` |
-| GitLab CI      | `examples/gitlab-ci/.gitlab-ci.yml`      |
-| Docker Compose | `examples/docker/docker-compose.yml`     |
-| Pre-commit     | `examples/pre-commit/.pre-commit-config.yaml` |
-
-## GitHub Action Job Summary
-
-SkillGuard's GitHub Action now automatically generates a markdown table summary that appears on the Action run page, making it easy to see scan results without digging through logs.
-
-### Features:
-- **Automatic Markdown Table**: Shows skill names, scores, pass/fail status, and critical counts
-- **Failed Skills Details**: Lists details for any failed skills
-- **Clean Integration**: Appears in the "Summary" tab of GitHub Actions
-
-The summary is generated automatically when the Action runs with the `output` parameter. Example output in GitHub Actions:
-
-### Usage:
-```yaml
-- name: Scan AI Skills
-  uses: ossafrica/skillguard@v1
-  with:
-    path: './skills'
-    threshold: 70
-    output: 'skillguard-report.json'  # Required for summary generation
+```sh
+skillguard scan ./skills --format markdown --output "$GITHUB_STEP_SUMMARY"
 ```
 
-## Pre-commit Integration
+| Integration              | Example                                                 |
+| ------------------------ | ------------------------------------------------------- |
+| GitHub Actions           | [Scan workflow](examples/github-actions/skill-scan.yml) |
+| GitLab CI                | [Pipeline](examples/gitlab-ci/.gitlab-ci.yml)           |
+| Docker Compose           | [Compose file](examples/docker/docker-compose.yml)      |
+| Pre-commit               | [Hook setup](examples/pre-commit/README.md)             |
+| Documentation publishers | [Publisher CI](examples/publisher-ci/README.md)         |
 
-SkillGuard can be used as a [pre-commit](https://pre-commit.com/) hook to automatically scan skill definitions before commits, catching security issues early in the development workflow.
+Publisher scans and commit checks complement agent-side controls. They do not intercept
+commands in a running agent.
 
-### Features:
-- **Automatic Scanning**: Runs on changed `.md` files before commits
-- **Configurable Threshold**: Set your own passing score
-- **Block Unsafe Commits**: Prevents commits with vulnerable skills
+## Visual examples
 
-### Quick Setup:
+<details>
+<summary>View CLI recordings</summary>
 
-1. Install pre-commit:
-   ```bash
-   pip install pre-commit
-   ```
+### Help command
 
-2. Add to `.pre-commit-config.yaml`:
-   ```yaml
-   repos:
-     - repo: https://github.com/OSSAfrica/skillguard
-       rev: v1.0.0  # Use latest release tag
-       hooks:
-         - id: skillguard
-           args: ["scan", "--path", ".", "--threshold", "70"]
-   ```
+![SkillGuard help](vhs/skillguard-help.gif)
 
-3. Install the hook:
-   ```bash
-   pre-commit install
-   ```
+### Scan Cloudflare skills
 
-### Advanced Configuration:
+![Scan Cloudflare skills](vhs/skillguard-scan-cloudflare.gif)
 
-```yaml
-repos:
-  - repo: https://github.com/OSSAfrica/skillguard
-    rev: v1.0.0
-    hooks:
-      - id: skillguard
-        # Scan only changed .md files for speed
-        args: ["scan", "--path"]
-        files: \.md$
-        # Custom threshold
-        # args: ["scan", "--path", ".", "--threshold", "80"]
-```
+### Scan AI SDK skills
 
-### Testing Locally:
-```bash
-# Test against this repository
-pre-commit try-repo https://github.com/OSSAfrica/skillguard
+![Scan AI SDK skills](vhs/skillguard-scan-ai-sdk.gif)
 
-# Or test with cloned repo
-pre-commit try-repo .
-```
+### Scan multiple paths
 
-See the full example in [`examples/pre-commit/`](examples/pre-commit/).
+![Multiple paths with an error](vhs/skillguard-multiple-paths-with-error.gif)
 
-## CLI Markdown Output Format
+</details>
 
-SkillGuard now supports markdown output format for better integration with documentation and CI systems.
+## Documentation and development
 
-### Usage:
-```bash
-# Generate markdown report
-skillguard scan --format markdown --output report.md
-
-# Pipe markdown to stdout
-skillguard scan --format markdown
-
-# Use in CI pipelines
-skillguard scan --format markdown --output $GITHUB_STEP_SUMMARY
-```
-
-### Format Options:
-- `text`: Colored terminal output (default)
-- `json`: JSON report for programmatic use
-- `markdown`: Markdown formatted report for documentation and GitHub summaries
-
-## Roadmap
-
-See [ROADMAP.md](ROADMAP.md) for the full project roadmap and future plans.
-
-**Current focus:** Phase 1 — Registry intelligence, CLI discovery commands, and database layer for scan history.
-
-### Progress Overview
-
-| Phase                                                | Status         |
-|------------------------------------------------------|----------------|
-| Phase 1: Scan Infrastructure & Registry Intelligence | 🔄 In progress |
-| Phase 2: SkillGuard.net — Public Security Dashboard  | ⬜ Not started  |
-| Phase 3: Ecosystem Integration & Trust               | ⬜ Not started  |
-| Phase 4: Advanced Threat Detection                   | ⬜ Not started  |
-| Phase 5: Enterprise & Governance                     | ⬜ Not started  |
-
-## Project Structure
-
-```
-skillguard/
-├── cmd/              # CLI commands (Cobra)
-│   ├── root.go        # Main entry point
-│   ├── scan.go       # Scan command
-│   └── config.go     # Config management
-├── internal/
-│   ├── model/         # Data structures
-│   ├── parser/        # Markdown/YAML parsing
-│   └── analyzer/      # Security scoring engine
-├── examples/          # CI/CD integration examples
-│   ├── github-actions/
-│   ├── gitlab-ci/
-│   └── docker/
-├── Dockerfile         # Container image definition
-├── ROADMAP.md         # Project roadmap and future plans
-└── main.go           # Application entry
-```
-
-## Contributing
-
-Contributions are welcome. Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on how to contribute to this
-project.
-
-## Architecture
-
-See [ARCHITECTURE.md](ARCHITECTURE.md) for how the scanner is put together and the principles behind it.
-
-## Development
-
-See [DEVELOPMENT.md](DEVELOPMENT.md) for instructions on setting up a development environment.
+- [Documentation index](docs/README.md): installation, integration guides and validation
+  records.
+- [Architecture](ARCHITECTURE.md): components, data flow and trust boundaries.
+- [Development](DEVELOPMENT.md): local setup and checks.
+- [Contributing](CONTRIBUTING.md): contribution requirements.
+- [Roadmap](ROADMAP.md): planned work.
+- [Security policy](SECURITY.md): reporting vulnerabilities.
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) for details.
+[MIT](LICENSE).
 
 ## Acknowledgments
 
-Inspired by tools like Snyk, Socket.dev, and npm audit for bringing security transparency to software ecosystems.
+Inspired by Snyk, Socket.dev and npm audit's work on software security transparency.

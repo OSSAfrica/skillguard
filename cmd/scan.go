@@ -4,11 +4,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"skillguard/internal/analyzer"
+	"skillguard/internal/extract"
 	"skillguard/internal/model"
 	"skillguard/internal/parser"
 
@@ -17,18 +20,19 @@ import (
 )
 
 var (
-	scanPath   string
-	threshold  int
-	outputFile string
-	quietMode  bool
-	verbose    bool
-	format     string
+	scanPath    string
+	threshold   int
+	outputFile  string
+	quietMode   bool
+	verbose     bool
+	format      string
+	stdinSource string
 )
 
 var scanCmd = &cobra.Command{
 	Use:   "scan [path]",
-	Short: "Scan AI skill definitions for security risks",
-	Long:  `SkillGuard analyzes Markdown-based skill definitions for security vulnerabilities, dangerous permissions, and supply chain risks.`,
+	Short: "Scan AI skills and documentation for security risks",
+	Long:  `SkillGuard statically analyzes skills, documentation, and text for security risks and proposed installation commands. Use - for stdin; source labels never grant filesystem or network access.`,
 	RunE:  runScan,
 }
 
@@ -45,6 +49,9 @@ func init() {
 		"Show all findings and detailed breakdown")
 	scanCmd.Flags().StringVarP(&format, "format", "f", "text",
 		"Output format: text, json, or markdown")
+	scanCmd.Flags().StringVar(&stdinSource, "source", "stdin", "Display identity for stdin (optional; never fetched or used as a local path)")
+	scanCmd.Flags().BoolVar(&verifyReferences, "verify-references", false, "Opt in to reference metadata checks using an explicit operator policy")
+	scanCmd.Flags().StringVar(&verificationPolicy, "verification-policy", "", "Path to trusted verification policy JSON (never auto-discovered)")
 
 	rootCmd.AddCommand(scanCmd)
 }
@@ -52,6 +59,7 @@ func init() {
 // errSkillsFailed reports skills scoring below the threshold. It is a distinct
 // outcome from an execution error, and maps to exit code 1 rather than 2.
 var errSkillsFailed = errors.New("one or more skills scored below the threshold")
+var errIncompleteScan = errors.New("scan incomplete; inspect coverage_gaps")
 
 func runScan(cmd *cobra.Command, args []string) error {
 	cfg := loadConfig()
@@ -64,46 +72,81 @@ func runScan(cmd *cobra.Command, args []string) error {
 	if err := validateThreshold(threshold); err != nil {
 		return err
 	}
-
-	paths := resolveScanPaths(args, scanPath, cfg)
-
-	report, warnings, err := scanPaths(paths, threshold)
+	if format != "text" && format != "json" && format != "markdown" {
+		return fmt.Errorf("unsupported output format: use text, json, or markdown")
+	}
+	verifier, err := configuredVerifier()
 	if err != nil {
 		return err
+	}
+	if verifier != nil {
+		defer verifier.Close()
+	}
+
+	paths := resolveScanPaths(args, scanPath, cfg)
+	if cmd.Flags().Changed("source") {
+		hasStdin := false
+		for _, path := range paths {
+			hasStdin = hasStdin || path == "-"
+		}
+		if !hasStdin {
+			return fmt.Errorf("--source requires a stdin input (-)")
+		}
+	}
+
+	report, warnings, err := scanInputs(paths, threshold, cmd.InOrStdin(), stdinSource)
+	if err != nil {
+		return err
+	}
+	if verifier != nil {
+		for i := range report.Results {
+			report.Results[i].Verification = verifier.Verify(cmd.Context(), report.Results[i].Extraction)
+		}
 	}
 
 	if !quietMode {
 		for _, w := range warnings {
-			color.Yellow("Warning: %s", w)
+			fmt.Fprintf(cmd.ErrOrStderr(), "Warning: %s\n", w)
 		}
 	}
 
-	if report.TotalSkills == 0 {
+	if report.TotalSkills == 0 && format != "json" {
 		if !quietMode {
-			color.Yellow("No skill files (*.md) found in paths: %v", paths)
+			fmt.Fprintln(cmd.ErrOrStderr(), "No supported inputs were analyzed; see coverage gaps.")
 		}
-
-		return nil
 	}
 
+	if err := renderScanReport(cmd, report); err != nil {
+		return err
+	}
+	return scanOutcome(report)
+}
+
+func renderScanReport(cmd *cobra.Command, report *model.ScanReport) error {
 	if outputFile != "" {
 		switch format {
 		case "json":
 			if err := writeJSONReport(outputFile, report); err != nil {
 				return fmt.Errorf("failed to write report: %w", err)
 			}
-			color.Green("JSON report written to: %s", outputFile)
+			if !quietMode {
+				fmt.Fprintf(cmd.ErrOrStderr(), "JSON report written to: %s\n", outputFile)
+			}
 		case "markdown":
 			if err := writeMarkdownReport(outputFile, report); err != nil {
 				return fmt.Errorf("failed to write markdown report: %w", err)
 			}
-			color.Green("Markdown report written to: %s", outputFile)
+			if !quietMode {
+				fmt.Fprintf(cmd.ErrOrStderr(), "Markdown report written to: %s\n", outputFile)
+			}
 		default:
 			// Default to JSON for backward compatibility
 			if err := writeJSONReport(outputFile, report); err != nil {
 				return fmt.Errorf("failed to write report: %w", err)
 			}
-			color.Green("Report written to: %s", outputFile)
+			if !quietMode {
+				fmt.Fprintf(cmd.ErrOrStderr(), "Report written to: %s\n", outputFile)
+			}
 		}
 	}
 
@@ -112,11 +155,11 @@ func runScan(cmd *cobra.Command, args []string) error {
 		case "json":
 			if outputFile == "" {
 				// Write JSON to stdout
-				data, err := json.MarshalIndent(report, "", "  ")
-				if err != nil {
-					return fmt.Errorf("failed to marshal JSON: %w", err)
+				encoder := json.NewEncoder(cmd.OutOrStdout())
+				encoder.SetIndent("", "  ")
+				if err := encoder.Encode(report); err != nil {
+					return fmt.Errorf("failed to write JSON: %w", err)
 				}
-				fmt.Println(string(data))
 			}
 		case "markdown":
 			printMarkdownReport(report)
@@ -125,11 +168,17 @@ func runScan(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	return scanOutcome(report)
+	return nil
 }
 
 // scanOutcome turns a finished report into the command's result.
 func scanOutcome(report *model.ScanReport) error {
+	if len(report.CoverageGaps) > 0 {
+		return errIncompleteScan
+	}
+	if err := verificationOutcome(report); err != nil {
+		return err
+	}
 	if report.Failed > 0 {
 		return errSkillsFailed
 	}
@@ -185,32 +234,66 @@ func splitPaths(raw string) []string {
 // scanPaths analyses every skill and reference file under the given paths,
 // returning the report and warnings for anything that had to be skipped.
 func scanPaths(paths []string, threshold int) (*model.ScanReport, []string, error) {
+	return scanInputs(paths, threshold, nil, "stdin")
+}
+
+func scanInputs(paths []string, threshold int, stdin io.Reader, source string) (*model.ScanReport, []string, error) {
 	var (
-		allFiles []parser.FoundFile
-		warnings []string
+		allFiles      []parser.FoundFile
+		warnings      []string
+		discoveryGaps []model.CoverageGap
 	)
 
 	for _, p := range paths {
+		if p == "-" {
+			allFiles = append(allFiles, parser.FoundFile{Path: "-", FileType: parser.FileTypeDocument})
+			continue
+		}
 		files, pathWarnings, err := parser.FindSkillFiles(expandPath(p))
 		if err != nil {
 			return nil, warnings, fmt.Errorf("failed to find skill files in %s: %w", p, err)
 		}
 
 		warnings = append(warnings, pathWarnings...)
+		for range pathWarnings {
+			discoveryGaps = append(discoveryGaps, model.CoverageGap{Code: "discovery_incomplete", Message: "Some entries under the requested input could not be discovered.", Location: model.SourceSpan{Source: extract.SafeSource(p)}})
+		}
 		allFiles = append(allFiles, files...)
 	}
 
 	scorer := analyzer.NewScorer(threshold)
 	report := &model.ScanReport{
-		ScanTime:  time.Now().UTC(),
-		Threshold: threshold,
-		Results:   []model.AnalysisResult{},
+		ScanTime:     time.Now().UTC(),
+		Threshold:    threshold,
+		Results:      []model.AnalysisResult{},
+		CoverageGaps: discoveryGaps,
 	}
 
+	stdinRead := false
 	for _, f := range allFiles {
-		result, err := analyzeFile(scorer, f)
+		var result *model.AnalysisResult
+		var err error
+		if f.Path == "-" {
+			if stdinRead || stdin == nil {
+				return nil, warnings, fmt.Errorf("stdin may be scanned only once and requires a reader")
+			}
+			stdinRead = true
+			var content []byte
+			content, err = parser.ReadText(stdin)
+			if err == nil {
+				label := extract.SafeSource(source)
+				result = scorer.AnalyzeReference(label, string(content))
+				result.Extraction = extract.Extract(label, string(content), "")
+			}
+		} else {
+			result, err = analyzeFile(scorer, f)
+		}
 		if err != nil {
-			warnings = append(warnings, fmt.Sprintf("skipped %s: %v", f.Path, err))
+			warnings = append(warnings, fmt.Sprintf("skipped %q: input could not be read or parsed completely", f.Path))
+			report.CoverageGaps = append(report.CoverageGaps, model.CoverageGap{
+				Code: "input_not_analyzed", Message: "Input could not be read or parsed completely; no safety verdict is available.",
+				Location: model.SourceSpan{Source: extract.SafeSource(f.Path)},
+			})
 			continue
 		}
 
@@ -218,6 +301,9 @@ func scanPaths(paths []string, threshold int) (*model.ScanReport, []string, erro
 	}
 
 	report.TotalSkills = len(report.Results)
+	if report.TotalSkills == 0 {
+		report.CoverageGaps = append(report.CoverageGaps, model.CoverageGap{Code: "no_assessable_input", Message: "No inputs were analyzed; this is not an execution approval."})
+	}
 	for _, r := range report.Results {
 		if r.Passed {
 			report.Passed++
@@ -229,9 +315,21 @@ func scanPaths(paths []string, threshold int) (*model.ScanReport, []string, erro
 	return report, warnings, nil
 }
 
-func analyzeFile(scorer *analyzer.Scorer, f parser.FoundFile) (*model.AnalysisResult, error) {
+func analyzeFile(scorer *analyzer.Scorer, f parser.FoundFile) (result *model.AnalysisResult, err error) {
+	content, err := parser.ReadTextFile(f.Path)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if result != nil {
+			result.Extraction = extract.Extract(f.Path, string(content), filepath.Dir(f.Path))
+		}
+	}()
+	if f.FileType == parser.FileTypeDocument {
+		return scorer.AnalyzeReference(f.Path, string(content)), nil
+	}
 	if f.FileType == parser.FileTypeReference {
-		body, err := parser.ExtractBodyOnly(f.Path)
+		body, err := parser.ExtractBodyText(f.Path, string(content))
 		if err != nil {
 			return nil, err
 		}
@@ -239,7 +337,7 @@ func analyzeFile(scorer *analyzer.Scorer, f parser.FoundFile) (*model.AnalysisRe
 		return scorer.AnalyzeReference(f.Path, body), nil
 	}
 
-	metadata, body, err := parser.ParseSkillFile(f.Path)
+	metadata, body, err := parser.ParseSkillText(f.Path, string(content))
 	if err != nil {
 		return nil, err
 	}
@@ -248,9 +346,9 @@ func analyzeFile(scorer *analyzer.Scorer, f parser.FoundFile) (*model.AnalysisRe
 }
 
 func expandPath(path string) string {
-	if len(path) > 1 && path[0] == '~' {
+	if path == "~" || (len(path) > 1 && path[0] == '~' && os.IsPathSeparator(path[1])) {
 		if home := homeDir(); home != "" {
-			return home + path[1:]
+			return filepath.Join(home, path[1:])
 		}
 	}
 
@@ -265,7 +363,9 @@ func printColoredReport(report *model.ScanReport) {
 	fmt.Println()
 
 	fmt.Printf("Scanned: %d skills | Threshold: %d | ", report.TotalSkills, report.Threshold)
-	if report.Failed == 0 {
+	if len(report.CoverageGaps) > 0 || errors.Is(verificationOutcome(report), errVerificationIncomplete) {
+		color.Yellow("INCOMPLETE")
+	} else if report.Failed == 0 && verificationOutcome(report) == nil {
 		color.Green("PASSED")
 	} else {
 		color.Red("FAILED")
@@ -279,6 +379,9 @@ func printColoredReport(report *model.ScanReport) {
 
 	fmt.Println(strings.Repeat("─", 70))
 	fmt.Printf("Summary: %d passed, %d failed\n", report.Passed, report.Failed)
+	for _, gap := range report.CoverageGaps {
+		fmt.Printf("Coverage: %s — %s\n", gap.Code, gap.Message)
+	}
 }
 
 func printSkillResult(r *model.AnalysisResult, verbose bool) {
@@ -307,6 +410,8 @@ func printSkillResult(r *model.AnalysisResult, verbose bool) {
 			return
 		}
 	}
+	printExtraction(r, verbose)
+	printVerification(r, verbose)
 
 	hasDetailedBreakdown := false
 	for _, cs := range r.CategoryScores {
@@ -438,45 +543,45 @@ func writeJSONReport(path string, report *model.ScanReport) error {
 
 func writeMarkdownReport(path string, report *model.ScanReport) error {
 	var builder strings.Builder
-	
+
 	fmt.Fprintf(&builder, "# SkillGuard Security Scan Report\n\n")
 	fmt.Fprintf(&builder, "**Scan Time:** %s  \n", report.ScanTime.Format("2006-01-02 15:04:05 MST"))
 	fmt.Fprintf(&builder, "**Total Skills:** %d  \n", report.TotalSkills)
 	fmt.Fprintf(&builder, "**Passed:** %d  \n", report.Passed)
 	fmt.Fprintf(&builder, "**Failed:** %d  \n", report.Failed)
 	fmt.Fprintf(&builder, "**Threshold:** %d/100  \n\n", report.Threshold)
-	
+
 	builder.WriteString("## Results Summary\n\n")
 	builder.WriteString("| Skill | Score | Pass/Fail | Critical Count |\n")
 	builder.WriteString("|-------|-------|-----------|----------------|\n")
-	
+
 	for _, result := range report.Results {
 		status := "❌ FAIL"
 		if result.Passed {
 			status = "✅ PASS"
 		}
-		fmt.Fprintf(&builder, "| %s | %d/100 | %s | %d |\n", 
+		fmt.Fprintf(&builder, "| %s | %d/100 | %s | %d |\n",
 			result.SkillName, result.OverallScore, status, result.CriticalCount)
 	}
-	
+
 	builder.WriteString("\n## Detailed Results\n\n")
-	
+
 	for _, result := range report.Results {
 		status := "❌ FAILED"
 		if result.Passed {
 			status = "✅ PASSED"
 		}
-		
-		fmt.Fprintf(&builder, "### %s - %s (Score: %d/100)\n\n", 
+
+		fmt.Fprintf(&builder, "### %s - %s (Score: %d/100)\n\n",
 			result.SkillName, status, result.OverallScore)
-		
+
 		fmt.Fprintf(&builder, "- **File:** %s  \n", result.FilePath)
 		fmt.Fprintf(&builder, "- **Critical Findings:** %d  \n", result.CriticalCount)
-		
+
 		if result.IsReference {
 			builder.WriteString("- **Type:** Reference Document  \n")
 		}
-		
+
 		if len(result.CategoryScores) > 0 {
 			builder.WriteString("\n**Category Scores:**  \n")
 			for _, cs := range result.CategoryScores {
@@ -493,7 +598,7 @@ func writeMarkdownReport(path string, report *model.ScanReport) error {
 				builder.WriteString("  \n")
 			}
 		}
-		
+
 		if len(result.Findings) > 0 {
 			builder.WriteString("\n**Findings:**  \n")
 			for _, f := range result.Findings {
@@ -515,10 +620,11 @@ func writeMarkdownReport(path string, report *model.ScanReport) error {
 				builder.WriteString("  \n")
 			}
 		}
-		
+
 		builder.WriteString("\n---\n\n")
 	}
-	
+
+	builder.WriteString(extractionMarkdown(report))
 	return os.WriteFile(path, []byte(builder.String()), 0600)
 }
 
@@ -530,20 +636,21 @@ func printMarkdownReport(report *model.ScanReport) {
 	fmt.Printf("**Passed:** %d  \n", report.Passed)
 	fmt.Printf("**Failed:** %d  \n", report.Failed)
 	fmt.Printf("**Threshold:** %d/100  \n\n", report.Threshold)
-	
+
 	fmt.Println("## Results Summary")
 	fmt.Println()
 	fmt.Println("| Skill | Score | Pass/Fail | Critical Count |")
 	fmt.Println("|-------|-------|-----------|----------------|")
-	
+
 	for _, result := range report.Results {
 		status := "❌ FAIL"
 		if result.Passed {
 			status = "✅ PASS"
 		}
-		fmt.Printf("| %s | %d/100 | %s | %d |\n", 
+		fmt.Printf("| %s | %d/100 | %s | %d |\n",
 			result.SkillName, result.OverallScore, status, result.CriticalCount)
 	}
-	
+
 	fmt.Println()
+	fmt.Print(extractionMarkdown(report))
 }

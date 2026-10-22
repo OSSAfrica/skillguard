@@ -1,0 +1,25 @@
+{
+  "name": "skillguard-native-plugin",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": "./index.mjs",
+  "description": "Scan untrusted AI documentation with a pinned local SkillGuard engine. Standard plugin is advisory; it does not enforce other tools.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/OSSAfrica/skillguard.git",
+    "directory": "plugins/skillguard"
+  },
+  "files": [
+    "index.mjs",
+    "runtime.py",
+    "runtime-lock.json",
+    "plugin.json",
+    "mcp.json",
+    ".mcp.json",
+    ".claude-plugin",
+    ".codex-plugin",
+    "skills"
+  ]
+}

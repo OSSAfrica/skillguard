@@ -1,0 +1,17 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "skillguard",
+  "version": "0.1.0",
+  "description": "Scan untrusted AI documentation with a pinned local SkillGuard engine. Standard plugin is advisory; it does not enforce other tools.",
+  "author": {
+    "name": "OSSAfrica"
+  },
+  "homepage": "https://github.com/OSSAfrica/skillguard",
+  "repository": "https://github.com/OSSAfrica/skillguard",
+  "license": "MIT",
+  "extensions": {
+    "com.openai": {
+      "onboardingSkill": "./skills/setup/SKILL.md"
+    }
+  }
+}

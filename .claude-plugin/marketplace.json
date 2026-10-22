@@ -1,0 +1,17 @@
+{
+  "name": "ossafrica-skillguard",
+  "owner": {
+    "name": "OSSAfrica"
+  },
+  "plugins": [
+    {
+      "name": "skillguard",
+      "source": "./plugins/skillguard",
+      "version": "0.1.0",
+      "description": "Local SkillGuard scanning tools; standard plugin is advisory."
+    }
+  ],
+  "metadata": {
+    "description": "OSSAfrica SkillGuard native coding-agent plugins"
+  }
+}

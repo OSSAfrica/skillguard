@@ -1,0 +1,58 @@
+# Copy into the publisher's .github/workflows only after operator review.
+# This example file does not enable any schedule in SkillGuard itself.
+name: Check published AI documentation
+on:
+  pull_request:
+    paths: ['llms.txt', 'llms-full.txt']
+  workflow_dispatch:
+  schedule:
+    - cron: '17 6 * * 1' # Optional weekly metadata recheck after installation.
+permissions:
+  contents: read
+jobs:
+  references:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Get reviewed scanner source independently of publisher input
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: OSSAfrica/skillguard
+          ref: 60f6c01d672a034388512730e5c38ff5b29dd34c
+          path: .reviewed-scanner
+          persist-credentials: false
+      - name: Get operator policy from the publisher's protected default branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: .operator-policy
+          persist-credentials: false
+          sparse-checkout: .security/llms-verification.json
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.25'
+          cache-dependency-path: .reviewed-scanner/go.sum
+      - name: Build reviewed scanner
+        run: go build -C .reviewed-scanner -o "$RUNNER_TEMP/skillguard" .
+      - name: Scan without running documentation instructions
+        run: |
+          "$RUNNER_TEMP/skillguard" scan llms.txt,llms-full.txt \
+            --format json --verify-references \
+            --verification-policy .operator-policy/.security/llms-verification.json \
+            > "$RUNNER_TEMP/llms-report.json"
+      - name: Summarize bounded reference states
+        if: always()
+        run: |
+          python3 - "$RUNNER_TEMP/llms-report.json" <<'PYTHON'
+          import json, pathlib, sys
+          report = json.loads(pathlib.Path(sys.argv[1]).read_bytes())
+          states = {}
+          for item in report.get("results", []):
+              for package in item.get("verification", {}).get("packages", []):
+                  state = package.get("state", "unknown")
+                  states[state] = states.get(state, 0) + 1
+          print("Reference states:", states)
+          print("Missing or unavailable references need investigation; metadata is not proof of identity or exploitation.")
+          PYTHON

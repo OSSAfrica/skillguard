@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "engine_version": "example",
+  "ruleset_version": "action-v1",
+  "assessed_at": "2026-10-20T12:00:00Z",
+  "expires_at": "2026-10-20T12:00:00Z",
+  "status": "partial",
+  "decision": "review",
+  "policy_id": "example-policy",
+  "policy_version": "1",
+  "policy_fingerprint": "sha256:2ac3151253c9567d41897c57b50b9d3643d21b1396d314f3e2ced53669f72c45",
+  "subject_fingerprint": "sha256:a5a2d55bc3ecbcd99d29ddd6f3d396c0df1d394a3da3bd674495792f99e7bccd",
+  "context_fingerprint": "sha256:168d9b69640ce6d8928c50513035816fe6d73f0211a40665bdd8c479e2c16eac",
+  "evidence_fingerprint": "sha256:5d761b793599cab58cdb6a21f39b4e9dcb17174f72ea29272da50a21d360643c",
+  "decision_fingerprint": "sha256:75b083f6b889ded3d6d99086980ac10fc4ee49e5b62a23bb2e570e8aaac476bf",
+  "evidence_trust": "untrusted_data",
+  "rules": [
+    {
+      "id": "SG_CONTEXT_UNVERIFIED",
+      "effect": "incomplete",
+      "message": "No operator-approved isolated execution profile matches this request.",
+      "remediation": "Resolve the reported coverage gap and reassess.",
+      "location": {
+        "source": "action",
+        "start_line": 1,
+        "end_line": 1
+      }
+    },
+    {
+      "id": "SG_REVIEW_REQUIRED",
+      "effect": "review",
+      "message": "This exact action and input context do not have a current operator review.",
+      "remediation": "Have an operator independently review this exact action and context; update the protected policy and reassess.",
+      "location": {
+        "source": "action",
+        "start_line": 1,
+        "end_line": 1
+      }
+    }
+  ],
+  "checks": [
+    {
+      "id": "static_action_inputs",
+      "required": true,
+      "status": "partial"
+    },
+    {
+      "id": "registry_metadata",
+      "required": false,
+      "status": "not_requested"
+    }
+  ],
+  "inputs": [],
+  "dependencies": [
+    {
+      "dependency": {
+        "ecosystem": "pypi",
+        "name": "requests",
+        "specifier": "==2.32.3",
+        "source": "registry"
+      },
+      "location": {
+        "source": "action",
+        "start_line": 1,
+        "end_line": 1
+      },
+      "artifact_hashes": []
+    }
+  ]
+}

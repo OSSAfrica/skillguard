@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -43,6 +44,40 @@ func TestFindSkillFiles_ScansNamedSkillFile(t *testing.T) {
 
 	if len(files) != 1 || files[0].FileType != FileTypeSkill {
 		t.Fatalf("expected one skill file, got %+v", files)
+	}
+}
+
+func TestLeadingBOMPreservesSkillMetadataAndBody(t *testing.T) {
+	for _, newline := range []string{"\n", "\r\n"} {
+		t.Run(fmt.Sprintf("newline_%q", newline), func(t *testing.T) {
+			dir := t.TempDir()
+			path := filepath.Join(dir, "SKILL.md")
+			body := "Keep this body marker: \ufeff."
+			content := "\ufeff---" + newline + "name: bom-skill" + newline + "---" + newline + body
+			writeFile(t, path, content)
+
+			for _, input := range []string{dir, path} {
+				files, warnings, err := FindSkillFiles(input)
+				if err != nil || len(warnings) != 0 || len(files) != 1 {
+					t.Fatalf("FindSkillFiles(%q) = %v, %v, %v", input, files, warnings, err)
+				}
+				if files[0].FileType != FileTypeSkill {
+					t.Fatalf("FileType = %v, want skill", files[0].FileType)
+				}
+			}
+
+			metadata, gotBody, err := ParseSkillFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if metadata.Name != "bom-skill" || gotBody != body {
+				t.Fatalf("metadata name = %q, body = %q; want bom-skill and %q", metadata.Name, gotBody, body)
+			}
+			extracted, err := ExtractBodyOnly(path)
+			if err != nil || extracted != body {
+				t.Fatalf("ExtractBodyOnly() = %q, %v; want %q", extracted, err, body)
+			}
+		})
 	}
 }
 
@@ -159,5 +194,39 @@ func writeFile(t *testing.T, path, content string) {
 	t.Helper()
 	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestDocumentationDiscoveryAndExplicitText(t *testing.T) {
+	dir := t.TempDir()
+	for _, name := range []string{"llms.txt", "llms-full.txt", "notes.txt", "README.md"} {
+		writeFile(t, filepath.Join(dir, name), "npm install helper@1\n")
+	}
+	files, warnings, err := FindSkillFiles(dir)
+	if err != nil || len(warnings) != 0 || len(files) != 3 {
+		t.Fatalf("directory discovery = %v, %v, %v", files, warnings, err)
+	}
+	for _, file := range files {
+		if filepath.Base(file.Path) == "notes.txt" {
+			t.Fatal("directory discovery swept arbitrary txt files")
+		}
+		if strings.HasSuffix(file.Path, ".txt") && file.FileType != FileTypeDocument {
+			t.Fatalf("text document classified as a skill: %+v", file)
+		}
+	}
+	files, _, err = FindSkillFiles(filepath.Join(dir, "notes.txt"))
+	if err != nil || len(files) != 1 || files[0].FileType != FileTypeDocument {
+		t.Fatalf("explicit text = %v, %v", files, err)
+	}
+}
+
+func TestTextReadRejectsOversizedAndBinaryInputs(t *testing.T) {
+	for _, content := range []string{strings.Repeat("x", MaxTextBytes+1), "binary\x00input", "invalid\xff"} {
+		if _, err := ReadText(strings.NewReader(content)); err == nil {
+			t.Fatal("unsupported input accepted")
+		}
+	}
+	if _, err := ReadText(strings.NewReader(strings.Repeat("x", MaxTextBytes))); err != nil {
+		t.Fatalf("exact-limit input rejected: %v", err)
 	}
 }
