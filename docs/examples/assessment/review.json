@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "engine_version": "example",
+  "ruleset_version": "action-v1",
+  "assessed_at": "2026-10-20T12:00:00Z",
+  "expires_at": "2026-10-20T12:01:00Z",
+  "status": "complete",
+  "decision": "review",
+  "policy_id": "example-policy",
+  "policy_version": "1",
+  "policy_fingerprint": "sha256:b11f507e01d2b218c49ab96aafd0ce80f2f7d66e81ad5bcd76c0d0b478d0abf8",
+  "subject_fingerprint": "sha256:a5a2d55bc3ecbcd99d29ddd6f3d396c0df1d394a3da3bd674495792f99e7bccd",
+  "context_fingerprint": "sha256:a1ceff83f03c555ad92014f693ea9a49865b2bb74e762fb5528adfa9bbe5adaa",
+  "evidence_fingerprint": "sha256:5d761b793599cab58cdb6a21f39b4e9dcb17174f72ea29272da50a21d360643c",
+  "decision_fingerprint": "sha256:38de1fca9d23bc7e03282f8b09c83b01ddb7bd3edfec202d9256965fde33a9c8",
+  "evidence_trust": "untrusted_data",
+  "rules": [
+    {
+      "id": "SG_REVIEW_REQUIRED",
+      "effect": "review",
+      "message": "This exact action and input context do not have a current operator review.",
+      "remediation": "Have an operator independently review this exact action and context; update the protected policy and reassess.",
+      "location": {
+        "source": "action",
+        "start_line": 1,
+        "end_line": 1
+      }
+    }
+  ],
+  "checks": [
+    {
+      "id": "static_action_inputs",
+      "required": true,
+      "status": "complete"
+    },
+    {
+      "id": "registry_metadata",
+      "required": false,
+      "status": "not_requested"
+    }
+  ],
+  "inputs": [],
+  "dependencies": [
+    {
+      "dependency": {
+        "ecosystem": "pypi",
+        "name": "requests",
+        "specifier": "==2.32.3",
+        "source": "registry"
+      },
+      "location": {
+        "source": "action",
+        "start_line": 1,
+        "end_line": 1
+      },
+      "artifact_hashes": []
+    }
+  ]
+}

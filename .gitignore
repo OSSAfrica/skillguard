@@ -6,7 +6,7 @@
 *.dylib
 
 # Built binary
-skillguard
+/skillguard
 
 # Test binary, built with `go test -c`
 *.test
@@ -48,3 +48,5 @@ dist/
 *.log
 
 
+# Python reference adapters and client profiles
+__pycache__/

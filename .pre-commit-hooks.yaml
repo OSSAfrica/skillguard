@@ -1,0 +1,9 @@
+- id: skillguard
+  name: SkillGuard Security Scanner
+  description: Scan AI agent skill definitions for security vulnerabilities
+  entry: skillguard
+  language: golang
+  pass_filenames: false
+  args: ["scan", "--path", ".", "--threshold", "70"]
+  files: \.md$
+  types: [text]

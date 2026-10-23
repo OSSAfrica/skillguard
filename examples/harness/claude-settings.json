@@ -1,0 +1,18 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/protected/python3",
+            "args": ["-I", "/protected/skillguard/claude_quarantine.py"],
+            "onFailure": "block",
+            "timeout": 25
+          }
+        ]
+      }
+    ]
+  }
+}

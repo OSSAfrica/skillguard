@@ -1,6 +1,8 @@
 # Development Guide
 
-This guide covers how to set up a development environment for SkillGuard.
+This guide covers how to set up a development environment for SkillGuard. Before
+submitting a PR, follow [Contributing](CONTRIBUTING.md) for DCO sign-off, verified
+commit signatures and the complete validation checklist.
 
 ## Prerequisites
 
@@ -71,6 +73,7 @@ go run . scan --help
 ### Adding a New Security Check
 
 1. **Define the finding type** in `internal/model/types.go`:
+
    ```go
    const (
        CategoryNewCheck Category = "new_check"
@@ -78,6 +81,7 @@ go run . scan --help
    ```
 
 2. **Add the detection logic** in `internal/analyzer/scorer.go`:
+
    ```go
    func (s *Scorer) checkNewRisk(body string) []model.Finding {
        var findings []model.Finding
@@ -87,6 +91,7 @@ go run . scan --help
    ```
 
 3. **Call the check** in `Analyze()` method:
+
    ```go
    result.Findings = append(result.Findings, s.checkNewRisk(body)...)
    ```
@@ -148,7 +153,8 @@ Scan the test skills:
 
 ### Enable verbose output
 
-Currently, debug output can be enabled by modifying the source code to add print statements or using a debugger.
+Currently, debug output can be enabled by modifying the source code to add print
+statements or using a debugger.
 
 ### Common Issues
 
@@ -162,18 +168,13 @@ Currently, debug output can be enabled by modifying the source code to add print
 - Test patterns at https://regex101.com
 - Use `regexp.MustCompile` with care - invalid patterns cause panics
 
-## Release Process
+## Release process
 
-1. Update version in `cmd/root.go`
-2. Update CHANGELOG.md
-3. Create git tag: `git tag v0.x.x`
-4. Build for all platforms:
-   ```bash
-   GOOS=darwin GOARCH=amd64 go build -o skillguard-darwin-amd64 .
-   GOOS=darwin GOARCH=arm64 go build -o skillguard-darwin-arm64 .
-   GOOS=linux GOARCH=amd64 go build -o skillguard-linux-amd64 .
-   ```
-5. Create GitHub release with binaries
+The [release workflow](.github/workflows/release.yml) runs on pushes to `main`. It
+calculates the next version from commit subjects, creates a tag and publishes artifacts.
+Ordinary contributions do not require manual tags, changes to a version constant or a
+separate release branch. See [Contributing](CONTRIBUTING.md#releases-and-versioning) for
+the current version rules and contributor workflow.
 
 ## Dependencies
 

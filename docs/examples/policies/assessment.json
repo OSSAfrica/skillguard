@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "id": "company-install-policy",
+  "version": "1",
+  "max_age_seconds": 60,
+  "isolated_profiles": [],
+  "reviewed_actions": [],
+  "require_metadata": true,
+  "verification": {
+    "schema_version": 1,
+    "registries": [
+      {
+        "id": "npm-public",
+        "ecosystem": "npm",
+        "metadata_url": "https://registry.npmjs.org",
+        "install_url": "https://registry.npmjs.org",
+        "default": true,
+        "packages": [
+          "zod"
+        ]
+      },
+      {
+        "id": "pypi-public",
+        "ecosystem": "pypi",
+        "metadata_url": "https://pypi.org/pypi",
+        "install_url": "https://pypi.org/simple",
+        "default": true,
+        "packages": [
+          "requests"
+        ]
+      }
+    ],
+    "dns_hosts": [],
+    "timeout_seconds": 5,
+    "max_requests": 64,
+    "cache_ttl_seconds": 300,
+    "min_interval_ms": 100
+  }
+}

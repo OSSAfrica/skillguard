@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "engine_version": "example",
+  "ruleset_version": "action-v1",
+  "assessed_at": "2026-10-20T12:00:00Z",
+  "expires_at": "2026-10-20T12:01:00Z",
+  "status": "complete",
+  "decision": "allow",
+  "policy_id": "example-policy",
+  "policy_version": "1",
+  "policy_fingerprint": "sha256:2ac3151253c9567d41897c57b50b9d3643d21b1396d314f3e2ced53669f72c45",
+  "subject_fingerprint": "sha256:a5a2d55bc3ecbcd99d29ddd6f3d396c0df1d394a3da3bd674495792f99e7bccd",
+  "context_fingerprint": "sha256:a1ceff83f03c555ad92014f693ea9a49865b2bb74e762fb5528adfa9bbe5adaa",
+  "evidence_fingerprint": "sha256:5d761b793599cab58cdb6a21f39b4e9dcb17174f72ea29272da50a21d360643c",
+  "decision_fingerprint": "sha256:ddd09dd944fd9c143719ee240ab099827ded61a82d278bf7c7ba51bb059e5016",
+  "evidence_trust": "untrusted_data",
+  "review_id": "independent-review-123",
+  "rules": [
+    {
+      "id": "SG_MUTABLE_ARTIFACT_LIMIT",
+      "effect": "info",
+      "message": "Version/source review does not bind the bytes returned by a mutable registry; the baseline must explicitly accept this limit.",
+      "remediation": "Resolve the reported coverage gap and reassess.",
+      "location": {
+        "source": "action",
+        "start_line": 1,
+        "end_line": 1
+      }
+    }
+  ],
+  "checks": [
+    {
+      "id": "static_action_inputs",
+      "required": true,
+      "status": "complete"
+    },
+    {
+      "id": "registry_metadata",
+      "required": false,
+      "status": "not_requested"
+    },
+    {
+      "id": "operator_review",
+      "required": true,
+      "status": "complete"
+    }
+  ],
+  "inputs": [],
+  "dependencies": [
+    {
+      "dependency": {
+        "ecosystem": "pypi",
+        "name": "requests",
+        "specifier": "==2.32.3",
+        "source": "registry"
+      },
+      "location": {
+        "source": "action",
+        "start_line": 1,
+        "end_line": 1
+      },
+      "artifact_hashes": []
+    }
+  ]
+}

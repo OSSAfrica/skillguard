@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "id": "example-policy",
+  "version": "1",
+  "max_age_seconds": 60,
+  "isolated_profiles": [
+    "isolated-installer-v1"
+  ],
+  "reviewed_actions": [],
+  "require_metadata": false,
+  "verification": {
+    "schema_version": 1,
+    "registries": [
+      {
+        "id": "pypi",
+        "ecosystem": "pypi",
+        "metadata_url": "https://pypi.org/pypi",
+        "install_url": "https://pypi.org/simple",
+        "packages": [
+          "requests"
+        ]
+      }
+    ]
+  }
+}
