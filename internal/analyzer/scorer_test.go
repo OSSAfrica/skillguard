@@ -3,6 +3,7 @@ package analyzer
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"skillguard/internal/model"
@@ -908,36 +909,62 @@ func TestScorer_ExtractReferencedFiles(t *testing.T) {
 	}
 }
 
-func TestScorer_analyzeReferencedScripts(t *testing.T) {
+func TestScorer_ReferencedScriptExtensions(t *testing.T) {
+	for _, ext := range []string{"py", "js", "ts", "sh", "rb", "go", "rs"} {
+		for _, spelling := range []string{ext, strings.ToUpper(ext)} {
+			t.Run(spelling, func(t *testing.T) {
+				dir := t.TempDir()
+				name := "helper." + spelling
+				path := filepath.Join(dir, name)
+				if err := os.WriteFile(path, []byte(`eval("payload")`), 0600); err != nil {
+					t.Fatal(err)
+				}
+
+				s := NewScorer(70)
+				files := s.extractReferencedFiles("[helper](" + name + ")")
+				if len(files) != 1 || files[0] != name {
+					t.Fatalf("expected reference to %q, got %v", name, files)
+				}
+
+				findings := s.analyzeReferencedScripts(filepath.Join(dir, "SKILL.md"), files)
+				if len(findings) != 1 {
+					t.Fatalf("expected one obfuscated-code finding, got %v", findings)
+				}
+				if findings[0].Category != model.CategoryObfuscatedCode || findings[0].Location != path {
+					t.Errorf("unexpected finding: %+v", findings[0])
+				}
+			})
+		}
+	}
+}
+
+func TestScorer_ReferencedScriptsWithoutFindings(t *testing.T) {
+	dir := t.TempDir()
+	for _, file := range []struct {
+		name    string
+		content string
+	}{
+		{"benign.py", "print('hello')"},
+		{"ignored.json", `eval("payload")`},
+		{"helper.py.txt", `eval("payload")`},
+		{"extensionless", `eval("payload")`},
+	} {
+		if err := os.WriteFile(filepath.Join(dir, file.name), []byte(file.content), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+
 	s := NewScorer(70)
-
-	// Create temporary directory for test files
-	tmpDir := t.TempDir()
-	
-	// Create a test markdown file that will be the "basePath"
-	baseFile := filepath.Join(tmpDir, "test.md")
-	if err := os.WriteFile(baseFile, []byte("# Test Skill"), 0600); err != nil {
-		t.Fatal(err)
+	for _, name := range []string{"benign.py", "ignored.json", "helper.py.txt", "extensionless", "missing.sh"} {
+		t.Run(name, func(t *testing.T) {
+			findings := s.analyzeReferencedScripts(filepath.Join(dir, "SKILL.md"), []string{name})
+			if len(findings) != 0 {
+				t.Errorf("expected no findings, got %v", findings)
+			}
+		})
 	}
-
-	// Create some test script files
-	pyFile := filepath.Join(tmpDir, "helper.py")
-	if err := os.WriteFile(pyFile, []byte("print('hello')"), 0600); err != nil {
-		t.Fatal(err)
-	}
-
-	jsFile := filepath.Join(tmpDir, "module.js")
-	if err := os.WriteFile(jsFile, []byte("console.log('test')"), 0600); err != nil {
-		t.Fatal(err)
-	}
-
-	// Test with actual files that exist
-	files := []string{"helper.py", "module.js", "non-existent.sh"}
-	findings := s.analyzeReferencedScripts(baseFile, files)
-	
-	// Should find the two existing script files
-	if findings == nil {
-		t.Error("expected findings slice, got nil")
+	if findings := s.analyzeReferencedScripts(filepath.Join(dir, "SKILL.md"), nil); len(findings) != 0 {
+		t.Errorf("expected no findings for empty references, got %v", findings)
 	}
 }
 

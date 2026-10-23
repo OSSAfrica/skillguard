@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 
 	"skillguard/internal/model"
@@ -196,11 +197,9 @@ var (
 	confusableScriptPattern = regexp.MustCompile(`[\p{Cyrillic}\p{Greek}]`)
 	latinLetterPattern      = regexp.MustCompile(`\p{Latin}`)
 
-	// scriptExts is the set of referenced file types SkillGuard follows and scans.
-	scriptExts = `(?:py|js|ts|sh|rb|go|rs)`
-	
-	// scriptExtensions is the single source of truth for script file extensions
-	scriptExtensions = []string{".py", ".js", ".ts", ".sh", ".rb", ".go", ".rs"}
+	// scriptExtensions defines the file types SkillGuard follows and scans.
+	scriptExtensions = []string{"py", "js", "ts", "sh", "rb", "go", "rs"}
+	scriptExts       = `(?:` + strings.Join(scriptExtensions, "|") + `)`
 
 	// Every pattern must expose the referenced path as the named group "path";
 	// extractReferencedFiles reads that group by name, never by position.
@@ -571,17 +570,34 @@ func (s *Scorer) checkNetworkAccess(body string) []model.Finding {
 		seen[url] = true
 
 		if s.isUntrustedURL(url) {
+			evidence := networkEvidence(url)
 			findings = append(findings, model.Finding{
 				Category:    model.CategoryNetwork,
 				Severity:    model.SeverityMedium,
-				Description: "External URL to untrusted domain: " + url,
-				Pattern:     url,
+				Description: "External URL to untrusted domain: " + evidence,
+				Pattern:     evidence,
 				ScoreCat:    model.CatSecurity,
 			})
 		}
 	}
 
 	return findings
+}
+
+// networkEvidence keeps destinations useful without reproducing authentication
+// material from documentation in reports or CI logs.
+func networkEvidence(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return "[invalid URL]"
+	}
+	u.User, u.RawQuery, u.Fragment = nil, "", ""
+	u.ForceQuery = false
+	evidence := u.String()
+	if len(evidence) > 1024 {
+		evidence = evidence[:1024] + "…"
+	}
+	return evidence
 }
 
 // isUntrustedURL decides trust from the parsed host only. Substring matching on
@@ -885,14 +901,9 @@ func detectMixedScript(body string) (int, bool) {
 // getReferencedScripts filters files to only include recognized script extensions.
 func (s *Scorer) getReferencedScripts(files []string) []string {
 	var scripts []string
-	extSet := make(map[string]bool)
-	for _, ext := range scriptExtensions {
-		extSet[ext] = true
-	}
-	
 	for _, f := range files {
-		ext := strings.ToLower(filepath.Ext(f))
-		if extSet[ext] {
+		ext := strings.TrimPrefix(strings.ToLower(filepath.Ext(f)), ".")
+		if slices.Contains(scriptExtensions, ext) {
 			scripts = append(scripts, f)
 		}
 	}
