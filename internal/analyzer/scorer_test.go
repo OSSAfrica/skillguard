@@ -3,6 +3,7 @@ package analyzer
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"skillguard/internal/model"
@@ -908,38 +909,62 @@ func TestScorer_ExtractReferencedFiles(t *testing.T) {
 	}
 }
 
-func TestScorer_GetReferencedScriptsPath(t *testing.T) {
-	s := NewScorer(70)
+func TestScorer_ReferencedScriptExtensions(t *testing.T) {
+	for _, ext := range []string{"py", "js", "ts", "sh", "rb", "go", "rs"} {
+		for _, spelling := range []string{ext, strings.ToUpper(ext)} {
+			t.Run(spelling, func(t *testing.T) {
+				dir := t.TempDir()
+				name := "helper." + spelling
+				path := filepath.Join(dir, name)
+				if err := os.WriteFile(path, []byte(`eval("payload")`), 0600); err != nil {
+					t.Fatal(err)
+				}
 
-	tests := []struct {
-		name  string
-		files []string
-		want  int
+				s := NewScorer(70)
+				files := s.extractReferencedFiles("[helper](" + name + ")")
+				if len(files) != 1 || files[0] != name {
+					t.Fatalf("expected reference to %q, got %v", name, files)
+				}
+
+				findings := s.analyzeReferencedScripts(filepath.Join(dir, "SKILL.md"), files)
+				if len(findings) != 1 {
+					t.Fatalf("expected one obfuscated-code finding, got %v", findings)
+				}
+				if findings[0].Category != model.CategoryObfuscatedCode || findings[0].Location != path {
+					t.Errorf("unexpected finding: %+v", findings[0])
+				}
+			})
+		}
+	}
+}
+
+func TestScorer_ReferencedScriptsWithoutFindings(t *testing.T) {
+	dir := t.TempDir()
+	for _, file := range []struct {
+		name    string
+		content string
 	}{
-		{
-			name:  "empty list",
-			files: nil,
-			want:  0,
-		},
-		{
-			name:  "valid scripts",
-			files: []string{"helper.py", "module.js", "script.sh"},
-			want:  3,
-		},
-		{
-			name:  "mixed",
-			files: []string{"helper.py", "config.json", "module.js"},
-			want:  2,
-		},
+		{"benign.py", "print('hello')"},
+		{"ignored.json", `eval("payload")`},
+		{"helper.py.txt", `eval("payload")`},
+		{"extensionless", `eval("payload")`},
+	} {
+		if err := os.WriteFile(filepath.Join(dir, file.name), []byte(file.content), 0600); err != nil {
+			t.Fatal(err)
+		}
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			scripts := s.GetReferencedScriptsPath("", tt.files)
-			if len(scripts) != tt.want {
-				t.Errorf("expected %d scripts, got %d: %v", tt.want, len(scripts), scripts)
+	s := NewScorer(70)
+	for _, name := range []string{"benign.py", "ignored.json", "helper.py.txt", "extensionless", "missing.sh"} {
+		t.Run(name, func(t *testing.T) {
+			findings := s.analyzeReferencedScripts(filepath.Join(dir, "SKILL.md"), []string{name})
+			if len(findings) != 0 {
+				t.Errorf("expected no findings, got %v", findings)
 			}
 		})
+	}
+	if findings := s.analyzeReferencedScripts(filepath.Join(dir, "SKILL.md"), nil); len(findings) != 0 {
+		t.Errorf("expected no findings for empty references, got %v", findings)
 	}
 }
 

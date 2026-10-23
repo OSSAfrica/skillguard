@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 
 	"skillguard/internal/model"
@@ -196,8 +197,9 @@ var (
 	confusableScriptPattern = regexp.MustCompile(`[\p{Cyrillic}\p{Greek}]`)
 	latinLetterPattern      = regexp.MustCompile(`\p{Latin}`)
 
-	// scriptExts is the set of referenced file types SkillGuard follows and scans.
-	scriptExts = `(?:py|js|ts|sh|rb|go|rs)`
+	// scriptExtensions defines the file types SkillGuard follows and scans.
+	scriptExtensions = []string{"py", "js", "ts", "sh", "rb", "go", "rs"}
+	scriptExts       = `(?:` + strings.Join(scriptExtensions, "|") + `)`
 
 	// Every pattern must expose the referenced path as the named group "path";
 	// extractReferencedFiles reads that group by name, never by position.
@@ -896,11 +898,12 @@ func detectMixedScript(body string) (int, bool) {
 	return confusable, share < maxConfusableShare
 }
 
-func (s *Scorer) GetReferencedScriptsPath(basePath string, files []string) []string {
+// getReferencedScripts filters files to only include recognized script extensions.
+func (s *Scorer) getReferencedScripts(files []string) []string {
 	var scripts []string
 	for _, f := range files {
-		ext := strings.ToLower(filepath.Ext(f))
-		if ext == ".py" || ext == ".js" || ext == ".ts" || ext == ".sh" || ext == ".rb" || ext == ".go" || ext == ".rs" {
+		ext := strings.TrimPrefix(strings.ToLower(filepath.Ext(f)), ".")
+		if slices.Contains(scriptExtensions, ext) {
 			scripts = append(scripts, f)
 		}
 	}
@@ -918,7 +921,7 @@ func (s *Scorer) analyzeReferencedScripts(basePath string, files []string) []mod
 	var findings []model.Finding
 
 	baseDir := filepath.Dir(basePath)
-	scriptFiles := s.GetReferencedScriptsPath(basePath, files)
+	scriptFiles := s.getReferencedScripts(files)
 
 	for _, scriptFile := range scriptFiles {
 		scriptPath, ok := resolveWithin(baseDir, scriptFile)
