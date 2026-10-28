@@ -149,6 +149,38 @@ cd skillguard
 go build -o skillguard .
 ```
 
+### Update the CLI
+
+```sh
+skillguard update --check
+skillguard update
+```
+
+`--check` reports the running executable, installation method, current version and
+latest stable GitHub release without installing anything. Homebrew's available
+version comes from local tap metadata and may lag the upstream release.
+
+For Homebrew installations, `update` refreshes Homebrew metadata and runs
+`brew upgrade --cask ossafrica/skillguard/skillguard`. Ownership is checked against
+the running executable's resolved path and the installed cask metadata; another
+SkillGuard copy on PATH is not upgraded instead.
+
+For standalone release binaries, `update` verifies the current executable against
+its published release, downloads the matching OS/architecture archive, verifies
+its published SHA-256 checksum and checks the new executable's version before
+replacing the installed file. A failed post-install version check restores the
+previous executable. The installation directory must be writable; the command
+does not invoke sudo. On Windows, a `.skillguard-previous-*.exe` backup may remain
+beside the executable until the old process exits and can then be removed.
+
+Plugin-pinned scanners, protected launcher bundles, containers, source builds and
+unknown installations receive guidance for their managing installer. Update plugins
+through their host, rerun setup and restart the agent; update container images on
+the host and recreate containers. Development builds report `dev` with the Git
+revision when available and are not automatically replaced with release binaries.
+Only releases that include the update command support these commands. Restart any
+running SkillGuard servers or agents after updating their CLI copy.
+
 ## CLI quick start
 
 ### Scan skills or documentation
