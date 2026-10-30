@@ -25,9 +25,14 @@ type Installation struct {
 type Runner func(context.Context, string, ...string) ([]byte, error)
 
 func Run(ctx context.Context, name string, args ...string) ([]byte, error) {
+	if !filepath.IsAbs(name) {
+		return nil, fmt.Errorf("updater subprocess requires an absolute executable path")
+	}
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-	command := exec.CommandContext(ctx, name, args...)
+	// Callers select package managers via LookPath or pass a checksum-verified
+	// release executable. Arguments are fixed by the updater; no shell is used.
+	command := exec.CommandContext(ctx, name, args...) // #nosec G204 -- intentional execution of an explicit manager or verified release binary, with fixed argv.
 	// Detection and check-only must not refresh taps or change Homebrew state.
 	command.Env = append(os.Environ(), "HOMEBREW_NO_AUTO_UPDATE=1", "HOMEBREW_NO_ANALYTICS=1")
 	return command.Output()

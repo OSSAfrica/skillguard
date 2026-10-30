@@ -25,19 +25,25 @@ func verifyVersion(ctx context.Context, path, version string, run Runner) error 
 // Replace checks the staged executable before changing the installation and keeps
 // a backup until the installed executable has passed the same version check.
 func Replace(ctx context.Context, path string, original, binary []byte, version string, run Runner) error {
+	root, err := os.OpenRoot(filepath.Dir(path))
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	name := filepath.Base(path)
 	lock := path + ".update-lock"
 	if err := os.Mkdir(lock, 0o700); err != nil {
 		return fmt.Errorf("cannot lock update (another update or insufficient permissions): %w", err)
 	}
 	defer os.Remove(lock)
-	info, err := os.Lstat(path)
+	info, err := root.Lstat(name)
 	if err != nil {
 		return err
 	}
 	if !info.Mode().IsRegular() || info.Mode()&(os.ModeSetuid|os.ModeSetgid) != 0 {
 		return fmt.Errorf("refusing to replace nonregular or privileged executable")
 	}
-	current, err := os.ReadFile(path)
+	current, err := root.ReadFile(name)
 	if err != nil {
 		return err
 	}
@@ -69,7 +75,7 @@ func Replace(ctx context.Context, path string, original, binary []byte, version 
 		return err
 	}
 	// The stage may run for several seconds; recheck the target just before commit.
-	current, err = os.ReadFile(path)
+	current, err = root.ReadFile(name)
 	if err != nil {
 		return err
 	}

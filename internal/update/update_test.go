@@ -422,3 +422,33 @@ func TestHomebrewUpgradeUsesManagerAndVerifiesResult(t *testing.T) {
 		})
 	}
 }
+
+func TestReplaceRejectsSymlinkSwapOutsideInstallation(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("symlink creation requires privileges on Windows")
+	}
+	path := executable(t, "skillguard")
+	outside := executable(t, "other")
+	run := func(context.Context, string, ...string) ([]byte, error) {
+		if err := os.Remove(path); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(outside, path); err != nil {
+			t.Fatal(err)
+		}
+		return []byte("skillguard version 1.2.0\n"), nil
+	}
+	if err := Replace(context.Background(), path, []byte("old"), []byte("new"), "1.2.0", run); err == nil {
+		t.Fatal("accepted symlink outside installation")
+	}
+	data, err := os.ReadFile(outside)
+	if err != nil || string(data) != "old" {
+		t.Fatalf("external file changed: %q %v", data, err)
+	}
+}
+
+func TestRunRejectsRelativeExecutable(t *testing.T) {
+	if _, err := Run(context.Background(), "brew", "--prefix"); err == nil {
+		t.Fatal("accepted relative subprocess path")
+	}
+}
