@@ -31,6 +31,7 @@ builds:
     ldflags:
       - -s -w
       - -X skillguard/cmd.Version={{ .Version }}
+      - -X skillguard/cmd.Distribution=release
     env:
       - CGO_ENABLED=0
 
@@ -44,6 +45,7 @@ builds:
     ldflags:
       - -s -w
       - -X skillguard/cmd.Version={{ .Version }}
+      - -X skillguard/cmd.Distribution=release
     env:
       - CGO_ENABLED=0
 
@@ -57,6 +59,7 @@ builds:
     ldflags:
       - -s -w
       - -X skillguard/cmd.Version={{ .Version }}
+      - -X skillguard/cmd.Distribution=release
     env:
       - CGO_ENABLED=0
 
@@ -70,6 +73,7 @@ builds:
     ldflags:
       - -s -w
       - -X skillguard/cmd.Version={{ .Version }}
+      - -X skillguard/cmd.Distribution=release
     env:
       - CGO_ENABLED=0
 
@@ -83,6 +87,7 @@ builds:
     ldflags:
       - -s -w
       - -X skillguard/cmd.Version={{ .Version }}
+      - -X skillguard/cmd.Distribution=release
     env:
       - CGO_ENABLED=0
 
@@ -96,6 +101,7 @@ builds:
     ldflags:
       - -s -w
       - -X skillguard/cmd.Version={{ .Version }}
+      - -X skillguard/cmd.Distribution=release
     env:
       - CGO_ENABLED=0
 
