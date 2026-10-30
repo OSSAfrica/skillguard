@@ -10,6 +10,8 @@ validation record. Scanning, assessment and execution are separate layers.
 | Guide                                                 | Use it when                                                                    |
 | ----------------------------------------------------- | ------------------------------------------------------------------------------ |
 | [CLI quick start](../README.md#cli-quick-start)       | Scanning local skills or documentation, or producing CI reports                |
+| [Homebrew installation and trust](homebrew.md)         | Installing the cask or resolving an untrusted-tap error during upgrades         |
+| [macOS first run](macos.md)                            | Understanding Apple's verification warning and approving a verified download  |
 | [Native plugins](native-plugins.md)                   | Adding advisory scanning to ordinary Claude Code, Codex or OpenCode sessions   |
 | [Protected launchers and MCP](client-integrations.md) | Restricting a client's native executors and connecting protected action tools  |
 | [Harness integration](harness-integration.md)         | Deploying a controlled execution gate in an operator-provided isolated runtime |

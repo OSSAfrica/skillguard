@@ -124,11 +124,27 @@ See [Architecture](ARCHITECTURE.md) for components and trust boundaries, or the
 Download a platform binary from the
 [releases page](https://github.com/OSSAfrica/skillguard/releases).
 
+**macOS:** downloaded binaries, including Homebrew cask installations, may be
+blocked with “Apple could not verify ‘skillguard’ is free of malware.” See the
+[macOS first-run guide](docs/macos.md) for release verification and Apple's
+**Privacy & Security → Open Anyway** procedure.
+
 ### Homebrew
 
 ```sh
-brew install ossafrica/skillguard/skillguard
+brew install --cask ossafrica/skillguard/skillguard
 ```
+
+Installing by the fully qualified name grants trust to this cask. If an existing
+installation reports an **untrusted tap** error during an upgrade, grant trust once:
+
+```sh
+brew trust --cask ossafrica/skillguard/skillguard
+brew upgrade --cask ossafrica/skillguard/skillguard
+```
+
+See [Homebrew installation and trust](docs/homebrew.md) for whole-tap trust,
+alternative commands and how to inspect or remove trust.
 
 ### Docker
 
@@ -164,6 +180,8 @@ For Homebrew installations, `update` refreshes Homebrew metadata and runs
 `brew upgrade --cask ossafrica/skillguard/skillguard`. Ownership is checked against
 the running executable's resolved path and the installed cask metadata; another
 SkillGuard copy on PATH is not upgraded instead.
+If Homebrew refuses to load the untrusted cask, follow the
+[trust instructions](docs/homebrew.md#upgrade-an-existing-installation), then retry.
 
 For standalone release binaries, `update` verifies the current executable against
 its published release, downloads the matching OS/architecture archive, verifies
