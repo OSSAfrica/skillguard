@@ -30,8 +30,10 @@ git fetch upstream
 git switch -c fix/describe-your-change upstream/main
 ```
 
-Use Go 1.25 or newer, as specified in [go.mod](go.mod). Python 3.10+ and a current
-supported Node.js release with `node --test` are needed for the integration contracts.
+The module minimum is Go 1.25, as specified in [go.mod](go.mod). CI and releases use
+Go 1.26.10, including container builds. Use a supported, patched Go release locally.
+Python 3.10+ and a current supported Node.js release with `node --test` are needed
+for the integration contracts.
 CI runs on Ubuntu; some process-control and loopback-network fixtures require Unix and
 permission to bind local ports. Installed Claude, Codex and OpenCode clients are needed
 only for the separate opt-in live-client tests.
