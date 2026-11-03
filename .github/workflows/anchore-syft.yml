@@ -16,6 +16,15 @@ name: Anchore Syft SBOM scan
 on:
   push:
     branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+    paths:
+      - '.github/workflows/anchore-syft.yml'
+      - '.dockerignore'
+      - 'Dockerfile'
+      - 'go.mod'
+      - 'go.sum'
+      - '**/*.go'
 
 permissions:
   contents: read
@@ -51,6 +60,7 @@ jobs:
 
   submit-dependencies:
     needs: Anchore-Build-Scan
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: write # required by the Dependency submission API
