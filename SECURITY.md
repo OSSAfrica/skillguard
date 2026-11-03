@@ -6,11 +6,13 @@ At Open Source & Security Africa (OSSAfrica), security is at the core of our mis
 
 ## Reporting a Vulnerability
 
-If you discover a security vulnerability in any OSSAfrica project, please report it responsibly by following these steps:
+If you discover a security vulnerability in SkillGuard, please report it responsibly by following these steps:
 
 1. **Do not** disclose the vulnerability publicly until it has been addressed
-2. Create a private security advisory in the affected repository, or
-3. Contact the maintainers directly through GitHub's private messaging
+2. Use [GitHub's private vulnerability reporting form](https://github.com/OSSAfrica/skillguard/security/advisories/new)
+   to send the report directly to this repository's maintainers
+3. Include the information below so maintainers can assess the report and coordinate
+   a fix and disclosure with you
 
 ### What to Include in Your Report
 
@@ -41,7 +43,8 @@ As a community focused on security, we encourage all contributors to:
 
 ## Scope
 
-This security policy applies to all repositories maintained by the OSSAfrica organization on GitHub.
+This security policy applies to SkillGuard. For another OSSAfrica project, follow the
+security policy in the affected repository.
 
 ## Recognition
 

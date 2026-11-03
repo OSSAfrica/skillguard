@@ -6,7 +6,9 @@ commit signatures and the complete validation checklist.
 
 ## Prerequisites
 
-- Go 1.25 or higher
+- Go 1.26.10 is the CI and release toolchain; the module's minimum remains Go 1.25.
+  Use a supported, patched Go release for local builds so binaries include current
+  standard-library security fixes.
 - Git
 - A text editor or IDE (VS Code, GoLand, etc.)
 
