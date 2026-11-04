@@ -1,12 +1,14 @@
 package parser
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 )
 
-func TestParseAllowedTools(t *testing.T) {
+func TestParseStringList(t *testing.T) {
 	tests := []struct {
 		name  string
 		input interface{}
@@ -51,15 +53,55 @@ func TestParseAllowedTools(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := parseAllowedTools(tt.input)
+			got := parseStringList(tt.input)
 			if len(got) != len(tt.want) {
-				t.Errorf("parseAllowedTools() = %v, want %v", got, tt.want)
+				t.Errorf("parseStringList() = %v, want %v", got, tt.want)
 				return
 			}
 			for i := range got {
 				if got[i] != tt.want[i] {
-					t.Errorf("parseAllowedTools()[%d] = %q, want %q", i, got[i], tt.want[i])
+					t.Errorf("parseStringList()[%d] = %q, want %q", i, got[i], tt.want[i])
 				}
+			}
+		})
+	}
+}
+
+func TestParseSkillTextTriggers(t *testing.T) {
+	tests := []struct {
+		name    string
+		field   string
+		want    []string
+		wantErr error
+	}{
+		{name: "single string", field: "triggers: deploy", want: []string{"deploy"}},
+		{name: "comma-separated string", field: "triggers: deploy, ship", want: []string{"deploy", "ship"}},
+		{name: "quoted string", field: `triggers: "deploy, ship"`, want: []string{"deploy", "ship"}},
+		{name: "flow list", field: "triggers: [deploy, ship]", want: []string{"deploy", "ship"}},
+		{name: "block list", field: "triggers:\n  - deploy\n  - ship", want: []string{"deploy", "ship"}},
+		{name: "list entry keeps its comma", field: `triggers: ["deploy, ship"]`, want: []string{"deploy, ship"}},
+		{name: "non-string list entries stay as text", field: "triggers: [2024, true]", want: []string{"2024", "true"}},
+		{name: "empty string", field: `triggers: ""`},
+		{name: "empty list", field: "triggers: []", want: []string{}},
+		{name: "null", field: "triggers:"},
+		{name: "omitted", field: "source: https://example.com"},
+		{name: "mapping is invalid", field: "triggers: {deploy: ship}", wantErr: ErrInvalidYAML},
+		{name: "nested list is invalid", field: "triggers: [[deploy]]", wantErr: ErrInvalidYAML},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			content := "---\nname: deploy-helper\n" + tt.field + "\n---\nBody."
+
+			metadata, _, err := ParseSkillText("SKILL.md", content)
+			if !errors.Is(err, tt.wantErr) {
+				t.Fatalf("ParseSkillText() error = %v, want %v", err, tt.wantErr)
+			}
+			if tt.wantErr != nil {
+				return
+			}
+			if !reflect.DeepEqual(metadata.Triggers, tt.want) {
+				t.Errorf("Triggers = %#v, want %#v", metadata.Triggers, tt.want)
 			}
 		})
 	}
