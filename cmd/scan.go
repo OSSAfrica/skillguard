@@ -329,12 +329,12 @@ func analyzeFile(scorer *analyzer.Scorer, f parser.FoundFile) (result *model.Ana
 		return scorer.AnalyzeReference(f.Path, string(content)), nil
 	}
 	if f.FileType == parser.FileTypeReference {
-		body, err := parser.ExtractBodyText(f.Path, string(content))
+		body, start, err := parser.ExtractBodyTextAt(f.Path, string(content))
 		if err != nil {
 			return nil, err
 		}
 
-		return scorer.AnalyzeReference(f.Path, body), nil
+		return scorer.AnalyzeReferenceAt(f.Path, body, start), nil
 	}
 
 	metadata, body, err := parser.ParseSkillText(f.Path, string(content))
@@ -461,6 +461,7 @@ func printSkillResult(r *model.AnalysisResult, verbose bool) {
 				if err != nil {
 					return
 				}
+				printFindingLocation(f)
 				if f.Deduction > 0 {
 					fmt.Printf(" (-%d)\n", f.Deduction)
 				} else {
@@ -479,6 +480,7 @@ func printSkillResult(r *model.AnalysisResult, verbose bool) {
 			if err2 != nil {
 				return
 			}
+			printFindingLocation(f)
 			if f.Deduction > 0 {
 				fmt.Printf(" (-%d)\n", f.Deduction)
 			} else {
@@ -614,6 +616,9 @@ func writeMarkdownReport(path string, report *model.ScanReport) error {
 					severityIcon = "🔵"
 				}
 				fmt.Fprintf(&builder, "- %s **%s:** %s", severityIcon, f.Category, f.Description)
+				if f.Location != "" {
+					fmt.Fprintf(&builder, " — %s", markdownText(findingLocation(f)))
+				}
 				if f.Deduction > 0 {
 					fmt.Fprintf(&builder, " (-%d)", f.Deduction)
 				}
@@ -652,5 +657,33 @@ func printMarkdownReport(report *model.ScanReport) {
 	}
 
 	fmt.Println()
+	fmt.Print(findingLocationsMarkdown(report))
 	fmt.Print(extractionMarkdown(report))
+}
+
+func findingLocation(f model.Finding) string {
+	if f.Line > 0 && f.Column > 0 {
+		return fmt.Sprintf("%s:%d:%d", f.Location, f.Line, f.Column)
+	}
+	return f.Location
+}
+
+func findingLocationsMarkdown(report *model.ScanReport) string {
+	var out strings.Builder
+	for _, result := range report.Results {
+		if len(result.Findings) == 0 {
+			continue
+		}
+		fmt.Fprintf(&out, "\n### Findings: %s\n\n", markdownText(result.FilePath))
+		for _, f := range result.Findings {
+			fmt.Fprintf(&out, "- **%s:** %s — %s\n", markdownText(string(f.Severity)), markdownText(f.Description), markdownText(findingLocation(f)))
+		}
+	}
+	return out.String()
+}
+
+func printFindingLocation(f model.Finding) {
+	if f.Location != "" {
+		fmt.Printf(" [%q]", findingLocation(f))
+	}
 }

@@ -200,6 +200,10 @@ supported. The `--source` label is never fetched or used as a local path.
 Command extraction supports a bounded syntax subset. Inspect coverage gaps as well as
 findings. See [command extraction](docs/command-extraction.md).
 
+Content findings include original-file line and column positions, displayed as
+`file:line:column`. Missing-metadata warnings remain file-level. See
+[finding source locations](docs/finding-locations.md) for JSON fields and column conventions.
+
 ### Save a report
 
 ```sh
