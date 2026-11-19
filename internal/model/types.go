@@ -49,6 +49,8 @@ type Finding struct {
 	Description string        `json:"description"`
 	Deduction   int           `json:"deduction"`
 	Location    string        `json:"location,omitempty"`
+	Line        int           `json:"line,omitempty"`
+	Column      int           `json:"column,omitempty"`
 	Pattern     string        `json:"pattern,omitempty"`
 	ScoreCat    ScoreCategory `json:"score_category,omitempty"`
 }
@@ -60,14 +62,23 @@ type CategoryScore struct {
 	Breakdown []Finding     `json:"breakdown,omitempty"`
 }
 
+// SourcePosition uses one-based lines and Unicode code-point columns. Tabs count
+// as one column. Zero values mean that no exact source position is available.
+type SourcePosition struct {
+	Line   int
+	Column int
+}
+
 type SkillMetadata struct {
-	Name            string   `json:"name"`
-	Description     string   `json:"description"`
-	Location        string   `json:"location"`
-	AllowedTools    []string `json:"allowed_tools,omitempty"`
-	Source          string   `json:"source,omitempty"`
-	Triggers        []string `json:"triggers,omitempty"`
-	ReferencedFiles []string `json:"referenced_files,omitempty"`
+	BodyStart       SourcePosition            `json:"-"`
+	ToolPositions   map[string]SourcePosition `json:"-"`
+	Name            string                    `json:"name"`
+	Description     string                    `json:"description"`
+	Location        string                    `json:"location"`
+	AllowedTools    []string                  `json:"allowed_tools,omitempty"`
+	Source          string                    `json:"source,omitempty"`
+	Triggers        []string                  `json:"triggers,omitempty"`
+	ReferencedFiles []string                  `json:"referenced_files,omitempty"`
 }
 
 type AnalysisResult struct {
