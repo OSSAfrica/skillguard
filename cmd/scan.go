@@ -53,6 +53,8 @@ func init() {
 	scanCmd.Flags().BoolVar(&verifyReferences, "verify-references", false, "Opt in to reference metadata checks using an explicit operator policy")
 	scanCmd.Flags().StringVar(&verificationPolicy, "verification-policy", "", "Path to trusted verification policy JSON (never auto-discovered)")
 
+	scanCmd.Flags().BoolVar(&checkVulnerabilities, "check-vulnerabilities", false, "Opt in to OSV lookups for extracted exact public npm/PyPI versions")
+	scanCmd.Flags().StringVar(&vulnerabilityPolicy, "vulnerability-policy", "", "Explicit operator OSV disclosure policy (never auto-discovered)")
 	rootCmd.AddCommand(scanCmd)
 }
 
@@ -83,6 +85,13 @@ func runScan(cmd *cobra.Command, args []string) error {
 		defer verifier.Close()
 	}
 
+	vulnerabilityChecker, err := configuredVulnerabilityChecker()
+	if err != nil {
+		return err
+	}
+	if vulnerabilityChecker != nil {
+		defer vulnerabilityChecker.Close()
+	}
 	paths := resolveScanPaths(args, scanPath, cfg)
 	if cmd.Flags().Changed("source") {
 		hasStdin := false
@@ -104,6 +113,11 @@ func runScan(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	if vulnerabilityChecker != nil {
+		for i := range report.Results {
+			report.Results[i].Vulnerabilities = vulnerabilityChecker.Check(cmd.Context(), report.Results[i].Extraction)
+		}
+	}
 	if !quietMode {
 		for _, w := range warnings {
 			fmt.Fprintf(cmd.ErrOrStderr(), "Warning: %s\n", w)
@@ -176,7 +190,13 @@ func scanOutcome(report *model.ScanReport) error {
 	if len(report.CoverageGaps) > 0 {
 		return errIncompleteScan
 	}
+	if err := vulnerabilityOutcome(report); errors.Is(err, errVulnerabilitiesIncomplete) {
+		return err
+	}
 	if err := verificationOutcome(report); err != nil {
+		return err
+	}
+	if err := vulnerabilityOutcome(report); err != nil {
 		return err
 	}
 	if report.Failed > 0 {
@@ -363,9 +383,9 @@ func printColoredReport(report *model.ScanReport) {
 	fmt.Println()
 
 	fmt.Printf("Scanned: %d skills | Threshold: %d | ", report.TotalSkills, report.Threshold)
-	if len(report.CoverageGaps) > 0 || errors.Is(verificationOutcome(report), errVerificationIncomplete) {
+	if len(report.CoverageGaps) > 0 || errors.Is(verificationOutcome(report), errVerificationIncomplete) || errors.Is(vulnerabilityOutcome(report), errVulnerabilitiesIncomplete) {
 		color.Yellow("INCOMPLETE")
-	} else if report.Failed == 0 && verificationOutcome(report) == nil {
+	} else if report.Failed == 0 && verificationOutcome(report) == nil && vulnerabilityOutcome(report) == nil {
 		color.Green("PASSED")
 	} else {
 		color.Red("FAILED")
@@ -412,6 +432,7 @@ func printSkillResult(r *model.AnalysisResult, verbose bool) {
 	}
 	printExtraction(r, verbose)
 	printVerification(r, verbose)
+	printVulnerabilities(r)
 
 	hasDetailedBreakdown := false
 	for _, cs := range r.CategoryScores {
@@ -630,6 +651,8 @@ func writeMarkdownReport(path string, report *model.ScanReport) error {
 	}
 
 	builder.WriteString(extractionMarkdown(report))
+	builder.WriteString(verificationMarkdown(report))
+	builder.WriteString(vulnerabilityMarkdown(report))
 	return os.WriteFile(path, []byte(builder.String()), 0600)
 }
 
@@ -659,6 +682,8 @@ func printMarkdownReport(report *model.ScanReport) {
 	fmt.Println()
 	fmt.Print(findingLocationsMarkdown(report))
 	fmt.Print(extractionMarkdown(report))
+	fmt.Print(verificationMarkdown(report))
+	fmt.Print(vulnerabilityMarkdown(report))
 }
 
 func findingLocation(f model.Finding) string {

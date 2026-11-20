@@ -224,6 +224,18 @@ Lookups require an explicit policy, including package-name disclosure allowlists
 [reference verification](docs/reference-verification.md) for private registry handling,
 network boundaries and uncertainty states.
 
+### Check known vulnerabilities explicitly
+
+```sh
+skillguard scan ./README.md --format json \
+  --check-vulnerabilities --vulnerability-policy /trusted/vulnerabilities.json
+```
+
+OSV lookups require explicit package-name disclosure policy and cover only supported
+extracted exact public npm/PyPI versions. A missing match does not establish safety.
+Ordinary scans and native MCP scanning remain offline. See
+[known-vulnerability checks](docs/vulnerability-checks.md) for limits and exit behavior.
+
 ### Assess a proposed action
 
 ```sh

@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "public_registries": ["npm", "pypi"],
+  "packages": {
+    "npm": ["lodash"],
+    "pypi": ["requests"]
+  },
+  "timeout_seconds": 5,
+  "max_requests": 64,
+  "cache_ttl_seconds": 300,
+  "min_interval_ms": 100
+}

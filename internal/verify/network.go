@@ -1,6 +1,7 @@
 package verify
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"errors"
@@ -148,10 +149,14 @@ func (b *broker) client(r Registry) *http.Client {
 }
 
 func (b *broker) Fetch(ctx context.Context, r Registry, target string) ([]byte, string, string) {
+	return b.request(ctx, r, target, http.MethodGet, nil)
+}
+
+func (b *broker) request(ctx context.Context, r Registry, target, method string, payload []byte) ([]byte, string, string) {
 	if err := b.owner.reserve(ctx); err != nil {
 		return nil, errorState(err), "request_not_started"
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
+	req, err := http.NewRequestWithContext(ctx, method, target, bytes.NewReader(payload))
 	if err != nil {
 		return nil, "unsupported_source", "invalid_metadata_endpoint"
 	}
@@ -160,6 +165,9 @@ func (b *broker) Fetch(ctx context.Context, r Registry, target string) ([]byte, 
 		return nil, "blocked", "metadata_endpoint_outside_policy"
 	}
 	req.Header.Set("Accept", "application/json")
+	if method == http.MethodPost {
+		req.Header.Set("Content-Type", "application/json")
+	}
 	req.Header.Set("User-Agent", "SkillGuard-metadata-verifier")
 	if r.AuthEnv != "" {
 		token, ok := os.LookupEnv(r.AuthEnv)
