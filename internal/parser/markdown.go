@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 
 	"skillguard/internal/model"
@@ -20,12 +21,14 @@ var (
 )
 
 type Frontmatter struct {
-	Name         string      `yaml:"name"`
-	Description  string      `yaml:"description"`
-	AllowedTools interface{} `yaml:"allowed-tools"` // string or []string
-	Source       string      `yaml:"source"`
-	Triggers     stringList  `yaml:"triggers"`
-	Location     string      `yaml:"location"`
+	Name          string      `yaml:"name"`
+	Description   string      `yaml:"description"`
+	AllowedTools  interface{} `yaml:"allowed-tools"` // string or []string
+	Source        string      `yaml:"source"`
+	Triggers      stringList  `yaml:"triggers"`
+	Location      string      `yaml:"location"`
+	bodyStart     model.SourcePosition
+	toolPositions map[string]model.SourcePosition
 }
 
 // stringList decodes a frontmatter field written as either a YAML list or a
@@ -93,12 +96,14 @@ func ParseSkillText(path, content string) (*model.SkillMetadata, string, error) 
 	}
 
 	metadata := &model.SkillMetadata{
-		Name:         frontmatter.Name,
-		Description:  frontmatter.Description,
-		AllowedTools: parseStringList(frontmatter.AllowedTools),
-		Source:       frontmatter.Source,
-		Triggers:     []string(frontmatter.Triggers),
-		Location:     path,
+		Name:          frontmatter.Name,
+		BodyStart:     frontmatter.bodyStart,
+		ToolPositions: frontmatter.toolPositions,
+		Description:   frontmatter.Description,
+		AllowedTools:  parseStringList(frontmatter.AllowedTools),
+		Source:        frontmatter.Source,
+		Triggers:      []string(frontmatter.Triggers),
+		Location:      path,
 	}
 
 	if metadata.Name == "" {
@@ -109,7 +114,12 @@ func ParseSkillText(path, content string) (*model.SkillMetadata, string, error) 
 }
 
 func extractFrontmatter(content string) (*Frontmatter, string, error) {
-	content = strings.TrimSpace(strings.TrimPrefix(content, "\ufeff"))
+	original := content
+	content = strings.TrimPrefix(content, "\ufeff")
+	bomBytes := len(original) - len(content)
+	trimmed := strings.TrimLeftFunc(content, unicode.IsSpace)
+	start := bomBytes + len(content) - len(trimmed)
+	content = strings.TrimSpace(trimmed)
 
 	if !strings.HasPrefix(content, "---") {
 		return nil, "", ErrNoFrontmatter
@@ -131,12 +141,28 @@ func extractFrontmatter(content string) (*Frontmatter, string, error) {
 
 	yamlContent := strings.Join(lines[1:endIndex], "\n")
 
+	var node yaml.Node
+	if err := yaml.Unmarshal([]byte(yamlContent), &node); err != nil {
+		return nil, "", fmt.Errorf("%w: %v", ErrInvalidYAML, err)
+	}
 	var fm Frontmatter
-	if err := yaml.Unmarshal([]byte(yamlContent), &fm); err != nil {
+	if err := node.Decode(&fm); err != nil {
 		return nil, "", fmt.Errorf("%w: %v", ErrInvalidYAML, err)
 	}
 
-	body := strings.TrimSpace(strings.Join(lines[endIndex+1:], "\n"))
+	bodyOffset := start
+	for _, line := range lines[:endIndex+1] {
+		bodyOffset += len(line) + 1
+	}
+	if bodyOffset > len(original) {
+		bodyOffset = len(original)
+	}
+	rawBody := original[bodyOffset:]
+	bodyOffset += len(rawBody) - len(strings.TrimLeftFunc(rawBody, unicode.IsSpace))
+	body := strings.TrimSpace(rawBody)
+	fm.bodyStart = model.PositionAt(original, bodyOffset)
+	yamlStart := model.PositionAt(original, start+len(lines[0])+1)
+	fm.toolPositions = toolPositions(&node, yamlStart.Line)
 
 	return &fm, body, nil
 }
@@ -151,19 +177,25 @@ func ExtractBodyOnly(path string) (string, error) {
 }
 
 func ExtractBodyText(path, content string) (string, error) {
+	body, _, err := ExtractBodyTextAt(path, content)
+	return body, err
+}
+
+// ExtractBodyTextAt also returns the body start in the original input.
+func ExtractBodyTextAt(path, content string) (string, model.SourcePosition, error) {
 	frontmatter, body, err := extractFrontmatter(content)
 	if err != nil {
 		if err == ErrNoFrontmatter {
-			return content, nil
+			return content, model.SourcePosition{Line: 1, Column: 1}, nil
 		}
-		return content, nil
+		return content, model.SourcePosition{Line: 1, Column: 1}, nil
 	}
 
 	if frontmatter != nil && body == "" {
-		return "", fmt.Errorf("empty body in %s", path)
+		return "", model.SourcePosition{}, fmt.Errorf("empty body in %s", path)
 	}
 
-	return body, nil
+	return body, frontmatter.bodyStart, nil
 }
 
 type FileType int
@@ -328,4 +360,42 @@ func ReadTextFile(path string) ([]byte, error) {
 	}
 	defer func() { _ = file.Close() }()
 	return ReadText(file)
+}
+
+// toolPositions anchors tools to their YAML value nodes, including quoted and
+// escaped values whose decoded spelling may not occur literally in the source.
+func toolPositions(document *yaml.Node, yamlLine int) map[string]model.SourcePosition {
+	positions := map[string]model.SourcePosition{}
+	if len(document.Content) == 0 {
+		return positions
+	}
+	mapping := document.Content[0]
+	for i := 0; i+1 < len(mapping.Content); i += 2 {
+		if mapping.Content[i].Value != "allowed-tools" {
+			continue
+		}
+		value := mapping.Content[i+1]
+		nodes := []*yaml.Node{value}
+		if value.Kind == yaml.SequenceNode {
+			nodes = value.Content
+		}
+		for _, node := range nodes {
+			if node.Kind != yaml.ScalarNode || node.Tag != "!!str" {
+				continue
+			}
+			tools := []string{node.Value}
+			if value.Kind != yaml.SequenceNode {
+				tools = parseStringList(node.Value)
+			}
+			for _, tool := range tools {
+				if tool == "" {
+					continue
+				}
+				if _, exists := positions[tool]; !exists {
+					positions[tool] = model.SourcePosition{Line: yamlLine + node.Line - 1, Column: node.Column}
+				}
+			}
+		}
+	}
+	return positions
 }
