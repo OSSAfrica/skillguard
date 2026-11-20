@@ -38,7 +38,7 @@ func Execute() {
 		os.Exit(code)
 	}
 
-	if errors.Is(err, errSkillsFailed) || errors.Is(err, errReferencesFailed) {
+	if errors.Is(err, errSkillsFailed) || errors.Is(err, errReferencesFailed) || errors.Is(err, errVulnerabilitiesFound) {
 		os.Exit(1)
 	}
 

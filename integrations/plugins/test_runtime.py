@@ -95,13 +95,29 @@ class RuntimeContracts(unittest.TestCase):
                 runtime.installed(self.base, self.selected)
 
     def test_status_reports_advisory_even_when_runtime_is_healthy(self):
-        with patch.object(runtime, 'health'):
+        with patch.object(runtime, 'health'), patch.object(runtime, 'running_version', return_value=self.lock['version']):
             result = runtime.status(self.base / 'binary', self.lock)
         self.assertTrue(result['scan_available'])
+        self.assertEqual(result['pinned_engine_version'], self.lock['version'])
+        self.assertEqual(result['running_engine_version'], self.lock['version'])
+        self.assertEqual(result['mcp_connection'], 'not_checked')
         self.assertEqual(result['enforcement'], 'advisory')
         self.assertFalse(result['execution_authorized'])
         self.assertFalse(result['install_tool_available'])
         self.assertEqual(result['hook_state'], 'not_installed')
+
+    def test_failure_reports_reason_without_claiming_mcp_failure(self):
+        with patch.object(runtime, 'selection', return_value=(self.lock, self.selected)), patch.object(runtime, 'location', side_effect=runtime.Unavailable('runtime_cache_inside_workspace')), patch('sys.argv', ['runtime.py', 'status']), patch('sys.stdout', new_callable=io.StringIO) as output:
+            self.assertEqual(runtime.main(), 2)
+        result = json.loads(output.getvalue())
+        self.assertEqual(result['reason'], 'runtime_cache_inside_workspace')
+        self.assertEqual(result['mcp_connection'], 'not_checked')
+        self.assertIn('project directory', result['next_step'])
+
+    def test_running_version_must_match_pin(self):
+        with patch.object(runtime, 'health'), patch.object(runtime, 'running_version', return_value='99.0.0'):
+            with self.assertRaisesRegex(runtime.Unavailable, 'runtime_version_mismatch'):
+                runtime.status(self.base/'binary', self.lock)
 
     def test_redirects_cannot_downgrade_https_or_change_to_an_untrusted_host(self):
         handler = runtime.HTTPSRedirects()

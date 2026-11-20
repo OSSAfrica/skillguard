@@ -11,6 +11,8 @@ import json
 import os
 from pathlib import Path, PurePosixPath
 import platform
+import re
+import urllib.error
 import stat
 import subprocess
 import sys
@@ -137,9 +139,26 @@ def health(binary):
         raise Unavailable("scan_tool_missing")
 
 
+def versions(lock):
+    package = json.loads(read_regular(ROOT / "package.json", 65536))
+    return {"plugin_version": package["version"], "pinned_engine_version": lock["version"],
+            "update_instructions": "Update the plugin through its host (OpenCode: use a newly reviewed commit), run setup, then restart the agent. Updating a standalone CLI does not update this pinned runtime."}
+
+
+def running_version(binary):
+    result = subprocess.run([str(binary), "--version"], capture_output=True, text=True, timeout=10, check=False)
+    match = re.fullmatch(r"skillguard version (\d+\.\d+\.\d+)\s*", result.stdout)
+    if result.returncode != 0 or not match:
+        raise Unavailable("runtime_version_unavailable")
+    return match.group(1)
+
+
 def status(binary, lock):
     health(binary)
-    return {"schema_version": 1, "status": "ready", "engine_version": lock["version"], "integrity_verified": True, "scan_available": True, "assessment_configured": False, "install_tool_available": False, "hook_state": "not_installed", "enforcement": "advisory", "execution_authorized": False}
+    running = running_version(binary)
+    if running != lock["version"]:
+        raise Unavailable("runtime_version_mismatch")
+    return {**versions(lock), "running_engine_version": running, "runtime_health": "ready", "mcp_connection": "not_checked","schema_version": 1, "status": "ready", "engine_version": lock["version"], "integrity_verified": True, "scan_available": True, "assessment_configured": False, "install_tool_available": False, "hook_state": "not_installed", "enforcement": "advisory", "execution_authorized": False}
 
 
 def main():
@@ -148,6 +167,7 @@ def main():
     parser.add_argument("--cache-dir", help="Operator-selected cache outside the target; default user data directory")
     parser.add_argument("--archive", help="Offline release archive, setup only; must match the packaged pin")
     args = parser.parse_args()
+    lock = None
     try:
         if args.archive and args.operation != "setup":
             raise Unavailable("archive_only_for_explicit_setup")
@@ -167,8 +187,30 @@ def main():
             os.execv(str(binary), [str(binary), "mcp"])
         print(json.dumps(status(binary, lock)))
         return 0
-    except (Unavailable, OSError, ValueError, KeyError, TypeError, tarfile.TarError, subprocess.TimeoutExpired):
-        result = {"schema_version": 1, "status": "unavailable", "enforcement": "advisory", "scan_available": False, "execution_authorized": False, "next_step": "Run the installed SkillGuard plugin setup workflow, then check status and restart the agent. No action is authorized."}
+    except (Unavailable, OSError, ValueError, KeyError, TypeError, tarfile.TarError, subprocess.TimeoutExpired) as error:
+        reason = "runtime_check_failed"
+        if isinstance(error, Unavailable):
+            reason = str(error)
+        elif isinstance(error, FileNotFoundError):
+            reason = "runtime_file_missing"
+        elif isinstance(error, PermissionError):
+            reason = "runtime_permission_denied"
+        elif isinstance(error, subprocess.TimeoutExpired):
+            reason = "runtime_health_timeout"
+        elif isinstance(error, urllib.error.URLError):
+            reason = "runtime_download_failed"
+        recovery = {
+            "runtime_cache_inside_workspace": "Launch the agent from the project directory rather than an ancestor of the runtime cache, or select an operator-managed cache outside the target.",
+            "runtime_file_missing": "Run setup for this installed plugin, then restart the agent.",
+            "runtime_download_failed": "Check HTTPS access to GitHub releases, or supply the exact pinned archive with --archive.",
+            "archive_integrity_failed": "The archive does not match the packaged pin. Obtain the exact reviewed release; do not change the checksum to bypass verification.",
+        }.get(reason, "Inspect the local runtime configuration and permissions, run setup/status again, and restart after successful setup.")
+        result = {"reason": reason, "next_step": recovery, "runtime_health": "unavailable", "mcp_connection": "not_checked","schema_version": 1, "status": "unavailable", "enforcement": "advisory", "scan_available": False, "execution_authorized": False}
+        if lock is not None:
+            try:
+                result.update(versions(lock))
+            except (OSError, ValueError, KeyError, TypeError):
+                pass
         print(json.dumps(result), file=sys.stderr if args.operation == "mcp" else sys.stdout)
         return 2
 

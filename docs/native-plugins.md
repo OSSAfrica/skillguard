@@ -58,6 +58,11 @@ Install the reviewed package from its immutable Git commit:
 opencode plugin add 'github:OSSAfrica/skillguard#4a5108c85d40def32cde720d094b2afce2f6433e::path:plugins/skillguard'
 ```
 
+The immutable reference above is a previously validated package, not a floating
+latest version. For subsequent updates, use the full commit reference in the reviewed
+plugin-runtime update PR. Installing the older reference retains its older plugin and
+engine versions.
+
 Restart OpenCode and invoke:
 
 ```text
@@ -74,19 +79,20 @@ find or claim.
 
 ## Runtime setup and status
 
-Setup explicitly downloads one existing SkillGuard **v0.13.0** release archive. Its
-SHA-256 is pinned in the plugin's `runtime-lock.json`, covering macOS, Linux and Windows
+Setup explicitly downloads the exact SkillGuard release selected by the installed
+plugin's [`runtime-lock.json`](../plugins/skillguard/runtime-lock.json). Its SHA-256
+is pinned per platform, covering macOS, Linux and Windows
 on amd64/arm64. Only the expected regular binary is extracted; traversal, symlinks and
 duplicate binaries are rejected. Corrupt downloads are rejected before replacing the
 previous installation.
 
-The cache is `~/.local/share/skillguard/plugin-runtime/v0.13.0/<platform>/`. All three
+The cache is `~/.local/share/skillguard/plugin-runtime/v<engine-version>/<platform>/`. All three
 agents share it. Status and normal MCP startup never download anything. Startup verifies
 the archive against the packaged pin and compares the installed binary with that
 verified archive; a writable checksum receipt cannot bless an altered executable. A
 missing/corrupt runtime makes scanning unavailable.
 
-A ready status reports:
+A ready status reports the actual engine version (the example below uses 0.13.0):
 
 ```json
 {
@@ -159,3 +165,32 @@ the new lock and repeat installed-client tests.
 - [Claude plugin manifests](https://code.claude.com/docs/en/plugins-reference)
 - [Official OpenAI plugin packaging](https://developers.openai.com/plugins/build/plugins)
 - [OpenCode native package management](https://dev.opencode.ai/v2/docs/plugins)
+
+## Diagnostics and automated runtime updates
+
+Plugin status now reports `plugin_version`, `pinned_engine_version`,
+`running_engine_version`, `integrity_verified`, and `runtime_health`. The legacy
+`engine_version` remains for compatibility. `mcp_connection: not_checked` means this
+is a local helper result, not proof of the host's live MCP connection. A status
+check is not a document scan. Failure results carry a bounded `reason` and
+`next_step`, without echoing raw subprocess output or secrets.
+
+For `runtime_cache_inside_workspace`, launch from the actual project directory
+rather than an ancestor of the user cache, or select an operator-controlled cache
+outside the scan target. OpenCode now preserves the helper's structured JSON even
+on exit 2; it no longer replaces every helper failure with a transport-looking stub.
+
+Successful scanner releases prepare a separate, reviewable plugin-runtime update PR.
+The workflow downloads that exact release's checksums, advances all versioned plugin
+manifests and the Claude marketplace together, exercises real setup/status on Linux,
+and explicitly requests branch CI. The Codex marketplace points at the local package
+and has no separate version field. Runtime-pin/manifest-only merges do not trigger
+another scanner release. Regular plugin code changes still do.
+
+Maintainers must review the six platform digests against the published release and
+repeat installed-client compatibility checks before merging. Commits are created through GitHub’s commit API, checked for a valid signature,
+and include the bot’s DCO sign-off. The workflow does not
+automatically merge or upgrade existing installations. Enable GitHub Actions to create
+pull requests in the repository settings; the job also requires contents, PR and
+Actions permissions. Failed automation leaves published binaries intact and can be
+rerun. Follow the PR's reviewed immutable commit reference for OpenCode updates.

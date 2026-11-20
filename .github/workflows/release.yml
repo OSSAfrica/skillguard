@@ -3,13 +3,38 @@ name: Release
 on:
   push:
     branches: [ main ]
+    # A reviewed runtime-pin bump must not publish another engine and loop.
+    paths-ignore:
+      - 'plugins/skillguard/runtime-lock.json'
+      - 'plugins/skillguard/package.json'
+      - 'plugins/skillguard/plugin.json'
+      - 'plugins/skillguard/.claude-plugin/plugin.json'
+      - 'plugins/skillguard/.codex-plugin/plugin.json'
+      - '.claude-plugin/marketplace.json'
+      - '.agents/plugins/marketplace.json'
+
+concurrency:
+  group: skillguard-release
+  cancel-in-progress: false
 
 permissions:
   contents: write
   pages: write
 
 jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version: '1.25'
+      - run: go test ./...
+      - run: python3 -I -m unittest discover -s integrations/plugins -p 'test_*.py' -v
+      - run: node --test integrations/plugins/test_opencode.mjs
+
   versioning:
+    needs: validate
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
@@ -24,16 +49,16 @@ jobs:
         run: |
           PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "v0.0.0")
           PREV_VERSION=${PREV_TAG#v}
-          
+
           COMMITS=$(git log --format=%s ${PREV_TAG}..HEAD 2>/dev/null | head -50)
           if [[ -z "$COMMITS" ]]; then
             COMMITS=$(git log --format=%s -1 HEAD)
           fi
-          
+
           MAJOR=0
           MINOR=0
           PATCH=0
-          
+
           while IFS= read -r commit; do
             [[ -z "$commit" ]] && continue
             if [[ "$commit" == *"BREAKING"* ]] || [[ "$commit" == *"breaking change"* ]]; then
@@ -44,15 +69,15 @@ jobs:
               MINOR=1
             fi
           done <<< "$COMMITS"
-          
+
           MAJOR_NUM=$(echo $PREV_VERSION | cut -d. -f1)
           MINOR_NUM=$(echo $PREV_VERSION | cut -d. -f2)
           PATCH_NUM=$(echo $PREV_VERSION | cut -d. -f3)
-          
+
           if [[ -z "$PATCH_NUM" ]]; then
             PATCH_NUM=0
           fi
-          
+
           if [[ "$MAJOR" == "1" ]]; then
             MAJOR_NUM=$((MAJOR_NUM + 1))
             MINOR_NUM=0
@@ -63,7 +88,7 @@ jobs:
           else
             PATCH_NUM=$((PATCH_NUM + 1))
           fi
-          
+
           VERSION="v${MAJOR_NUM}.${MINOR_NUM}.${PATCH_NUM}"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
@@ -216,14 +241,77 @@ jobs:
           VERSION="${{ needs.versioning.outputs.version }}"
           GH_ASSET="skillguard-${VERSION}-sbom.spdx"
           mv skillguard-sbom.spdx "$GH_ASSET"
-          
+
           RELEASE_ID=$(gh release view "$VERSION" --json id -q .id)
-          
+
           curl -sL \
             -X POST "https://uploads.github.com/repos/${{ github.repository }}/releases/${RELEASE_ID}/assets?name=${GH_ASSET}&label=SBOM" \
             -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
             -H "Content-Type: application/octet-stream" \
             --data-binary @"$GH_ASSET"
+
+  plugin-update:
+    needs: [versioning, release]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+    concurrency:
+      group: plugin-runtime-update
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: main
+      - name: Prepare reviewed runtime update
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.versioning.outputs.version }}
+        run: |
+          set -euo pipefail
+          gh release download "$RELEASE_TAG" --pattern checksums.txt --dir "$RUNNER_TEMP/release"
+          python3 integrations/plugins/prepare_update.py --version "${RELEASE_TAG#v}" --checksums "$RUNNER_TEMP/release/checksums.txt"
+          python3 -I -m unittest discover -s integrations/plugins -p 'test_*.py' -v
+          node --test integrations/plugins/test_opencode.mjs
+          python3 -I plugins/skillguard/runtime.py setup --cache-dir "$RUNNER_TEMP/plugin-runtime"
+          python3 -I plugins/skillguard/runtime.py status --cache-dir "$RUNNER_TEMP/plugin-runtime"
+      - name: Open update PR and request branch CI
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.versioning.outputs.version }}
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then exit 0; fi
+          branch="automation/plugin-runtime-${RELEASE_TAG}"
+          base_commit=$(git rev-parse HEAD)
+          existing_head=$(git ls-remote --heads origin "$branch" | cut -f1)
+          if [ -n "$existing_head" ] && [ "$existing_head" != "$base_commit" ]; then
+            # Preserve an existing reviewed branch; reruns must not replace it.
+            gh pr view "$branch" --json url
+            gh workflow run ci.yml --ref "$branch"
+            exit 0
+          fi
+          if [ -z "$existing_head" ]; then
+            git push origin "HEAD:refs/heads/$branch"
+          fi
+          # GitHub signs API-authored commits; retain a DCO trailer for the bot.
+          python3 integrations/plugins/prepare_update.py --version "${RELEASE_TAG#v}" --commit-request "$RUNNER_TEMP/plugin-commit.json" --repository "$GITHUB_REPOSITORY" --branch "$branch" --expected-head "$base_commit"
+          gh api graphql --input "$RUNNER_TEMP/plugin-commit.json" > "$RUNNER_TEMP/plugin-commit-result.json"
+          jq -e '.data.createCommitOnBranch.commit.signature.isValid == true' "$RUNNER_TEMP/plugin-commit-result.json"
+          plugin_commit=$(jq -r '.data.createCommitOnBranch.commit.oid' "$RUNNER_TEMP/plugin-commit-result.json")
+          cat > "$RUNNER_TEMP/plugin-pr.md" <<EOF_BODY
+          Updates the native plugins to scanner ${RELEASE_TAG}, using its published exact checksums. All plugin and marketplace versions advance together.
+
+          Validation: plugin contract tests, OpenCode command tests, and real pinned runtime setup/status on Linux. Branch CI is requested explicitly. Review the release, all six archive checksums, and installed-client compatibility before merging. This PR is not automatically merged.
+
+          OpenCode immutable package reference after review:
+          github:OSSAfrica/skillguard#${plugin_commit}::path:plugins/skillguard
+
+          Existing installations require a host plugin update, setup, and agent restart. A standalone CLI update does not change the plugin engine.
+          EOF_BODY
+          gh pr create --base main --head "$branch" --title "chore(plugins): update runtime to ${RELEASE_TAG}" --body-file "$RUNNER_TEMP/plugin-pr.md"
+          gh workflow run ci.yml --ref "$branch"
 
   notify:
     needs: [ versioning, release, docker, sign, sbom ]

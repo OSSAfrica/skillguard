@@ -25,6 +25,7 @@ Registering an MCP scanner or asking an agent to scan does not enforce use.
 | [Finding locations](finding-locations.md) | Original-file line/column positions, output fields and location limits |
 | [Command extraction](command-extraction.md)         | Supported inputs and command syntax, references, limits and coverage gaps |
 | [Reference verification](reference-verification.md) | Explicit registry/DNS policy, disclosure boundaries and uncertainty       |
+| [Vulnerability checks](vulnerability-checks.md) | Opt-in OSV evidence for extracted exact public npm/PyPI versions |
 | [Action assessment](action-assessment.md)           | Versioned requests, policies, decisions, reviews and context bindings     |
 | [Policy reference](policies.md)                     | Every policy field, defaults, limits and restrictive starting examples    |
 | [Architecture](../ARCHITECTURE.md)                  | Components, data flow and trust boundaries                                |
