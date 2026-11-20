@@ -255,7 +255,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      pull-requests: write
       actions: write
     concurrency:
       group: plugin-runtime-update
@@ -276,7 +275,7 @@ jobs:
           node --test integrations/plugins/test_opencode.mjs
           python3 -I plugins/skillguard/runtime.py setup --cache-dir "$RUNNER_TEMP/plugin-runtime"
           python3 -I plugins/skillguard/runtime.py status --cache-dir "$RUNNER_TEMP/plugin-runtime"
-      - name: Open update PR and request branch CI
+      - name: Prepare maintainer handoff and request branch CI
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ needs.versioning.outputs.version }}
@@ -287,30 +286,21 @@ jobs:
           base_commit=$(git rev-parse HEAD)
           existing_head=$(git ls-remote --heads origin "$branch" | cut -f1)
           if [ -n "$existing_head" ] && [ "$existing_head" != "$base_commit" ]; then
-            # Preserve an existing reviewed branch; reruns must not replace it.
-            gh pr view "$branch" --json url
-            gh workflow run ci.yml --ref "$branch"
-            exit 0
+            # Reuse a signed update even if an earlier run never opened a PR.
+            plugin_commit="$existing_head"
+            verified=$(gh api "repos/$GITHUB_REPOSITORY/commits/$plugin_commit" --jq '.commit.verification.verified')
+            test "$verified" = true
+          else
+            if [ -z "$existing_head" ]; then
+              git push origin "HEAD:refs/heads/$branch"
+            fi
+            # GitHub signs API-authored commits; retain a DCO trailer for the bot.
+            python3 integrations/plugins/prepare_update.py --version "${RELEASE_TAG#v}" --commit-request "$RUNNER_TEMP/plugin-commit.json" --repository "$GITHUB_REPOSITORY" --branch "$branch" --expected-head "$base_commit"
+            gh api graphql --input "$RUNNER_TEMP/plugin-commit.json" > "$RUNNER_TEMP/plugin-commit-result.json"
+            jq -e '.data.createCommitOnBranch.commit.signature.isValid == true' "$RUNNER_TEMP/plugin-commit-result.json"
+            plugin_commit=$(jq -r '.data.createCommitOnBranch.commit.oid' "$RUNNER_TEMP/plugin-commit-result.json")
           fi
-          if [ -z "$existing_head" ]; then
-            git push origin "HEAD:refs/heads/$branch"
-          fi
-          # GitHub signs API-authored commits; retain a DCO trailer for the bot.
-          python3 integrations/plugins/prepare_update.py --version "${RELEASE_TAG#v}" --commit-request "$RUNNER_TEMP/plugin-commit.json" --repository "$GITHUB_REPOSITORY" --branch "$branch" --expected-head "$base_commit"
-          gh api graphql --input "$RUNNER_TEMP/plugin-commit.json" > "$RUNNER_TEMP/plugin-commit-result.json"
-          jq -e '.data.createCommitOnBranch.commit.signature.isValid == true' "$RUNNER_TEMP/plugin-commit-result.json"
-          plugin_commit=$(jq -r '.data.createCommitOnBranch.commit.oid' "$RUNNER_TEMP/plugin-commit-result.json")
-          cat > "$RUNNER_TEMP/plugin-pr.md" <<EOF_BODY
-          Updates the native plugins to scanner ${RELEASE_TAG}, using its published exact checksums. All plugin and marketplace versions advance together.
-
-          Validation: plugin contract tests, OpenCode command tests, and real pinned runtime setup/status on Linux. Branch CI is requested explicitly. Review the release, all six archive checksums, and installed-client compatibility before merging. This PR is not automatically merged.
-
-          OpenCode immutable package reference after review:
-          github:OSSAfrica/skillguard#${plugin_commit}::path:plugins/skillguard
-
-          Existing installations require a host plugin update, setup, and agent restart. A standalone CLI update does not change the plugin engine.
-          EOF_BODY
-          gh pr create --base main --head "$branch" --title "chore(plugins): update runtime to ${RELEASE_TAG}" --body-file "$RUNNER_TEMP/plugin-pr.md"
+          python3 integrations/plugins/prepare_update.py --version "${RELEASE_TAG#v}" --handoff "$GITHUB_STEP_SUMMARY" --repository "$GITHUB_REPOSITORY" --branch "$branch" --commit "$plugin_commit"
           gh workflow run ci.yml --ref "$branch"
 
   notify:

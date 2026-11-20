@@ -180,17 +180,24 @@ rather than an ancestor of the user cache, or select an operator-controlled cach
 outside the scan target. OpenCode now preserves the helper's structured JSON even
 on exit 2; it no longer replaces every helper failure with a transport-looking stub.
 
-Successful scanner releases prepare a separate, reviewable plugin-runtime update PR.
-The workflow downloads that exact release's checksums, advances all versioned plugin
-manifests and the Claude marketplace together, exercises real setup/status on Linux,
-and explicitly requests branch CI. The Codex marketplace points at the local package
-and has no separate version field. Runtime-pin/manifest-only merges do not trigger
-another scanner release. Regular plugin code changes still do.
+Successful scanner releases prepare a signed plugin-runtime update branch and a
+maintainer handoff in the workflow summary. The workflow downloads that exact release's
+checksums, advances all versioned plugin manifests and the Claude marketplace together,
+exercises real setup/status on Linux, and explicitly requests branch CI. The Codex
+marketplace points at the local package and has no separate version field.
 
-Maintainers must review the six platform digests against the published release and
-repeat installed-client compatibility checks before merging. Commits are created through GitHub’s commit API, checked for a valid signature,
-and include the bot’s DCO sign-off. The workflow does not
-automatically merge or upgrade existing installations. Enable GitHub Actions to create
-pull requests in the repository settings; the job also requires contents, PR and
-Actions permissions. Failed automation leaves published binaries intact and can be
-rerun. Follow the PR's reviewed immutable commit reference for OpenCode updates.
+The summary provides a comparison link and a ready-to-run `gh pr create` command.
+A maintainer opens the PR with their own account. Actions does not create or approve
+PRs, so the organization/repository setting that combines those capabilities can stay
+disabled. The job needs contents write to publish the signed branch and Actions write
+to dispatch CI; it has no pull-requests write permission.
+
+Runtime-pin/manifest-only merges do not trigger another scanner release. Regular plugin
+code changes still do. Maintainers must review the six platform digests against the
+published release and repeat installed-client compatibility checks before merging.
+Commits are created through GitHub’s commit API, checked for a valid signature, and
+include the bot’s DCO sign-off. No update is automatically merged or installed.
+
+Reruns reuse an existing signed update branch even if no PR was opened. They do not
+replace reviewed branch history; an unsigned existing head is rejected. Follow the
+summary's reviewed immutable commit reference for OpenCode updates.
