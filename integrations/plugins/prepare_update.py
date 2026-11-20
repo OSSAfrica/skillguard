@@ -5,6 +5,7 @@ import base64
 import json
 from pathlib import Path
 import re
+import shlex
 
 from pin_runtime import generate
 
@@ -65,16 +66,34 @@ def commit_request(root, repository, branch, expected_head, version):
     }
 
 
+def handoff(repository, branch, commit, version):
+    if not re.fullmatch(r'[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+', repository) or not re.fullmatch(r'v\d+\.\d+\.\d+', version) or branch != f'automation/plugin-runtime-{version}' or not re.fullmatch(r'[a-f0-9]{40}', commit):
+        raise ValueError('Invalid update handoff identity')
+    command = shlex.join(['gh', 'pr', 'create', '--repo', repository, '--base', 'main', '--head', branch,
+                          '--title', f'chore(plugins): update runtime to {version}',
+                          '--body', f'Updates the pinned runtime to {version} from published checksums. Review all six platform digests and installed-client compatibility. Signed update commit: {commit}. Existing installations require a host plugin update, setup and restart.'])
+    return (f'## Plugin runtime {version} ready for review\n\n'
+            f'[Compare changes and open a PR](https://github.com/{repository}/compare/main...{branch}?expand=1)\n\n'
+            'No PR is created or approved by Actions. A maintainer opens the PR; branch CI is requested separately.\n\n'
+            f'```sh\n{command}\n```\n\n'
+            f'OpenCode reference after review: `github:{repository}#{commit}::path:plugins/skillguard`\n')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--version', required=True)
     parser.add_argument('--checksums')
     parser.add_argument('--commit-request')
+    parser.add_argument('--handoff')
+    parser.add_argument('--commit')
     parser.add_argument('--repository')
     parser.add_argument('--branch')
     parser.add_argument('--expected-head')
     args = parser.parse_args()
-    if args.commit_request:
+    if args.handoff:
+        with Path(args.handoff).open('a') as output:
+            output.write(handoff(args.repository, args.branch, args.commit, 'v'+args.version))
+    elif args.commit_request:
         request = commit_request(ROOT, args.repository, args.branch, args.expected_head, 'v'+args.version)
         Path(args.commit_request).write_text(json.dumps(request)+'\n')
     else:
