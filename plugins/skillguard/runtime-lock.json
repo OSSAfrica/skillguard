@@ -1,41 +1,41 @@
 {
   "schema_version": 1,
-  "version": "0.17.0",
+  "version": "0.17.1",
   "platforms": {
     "darwin_amd64": {
       "platform": "darwin_amd64",
-      "asset": "skillguard_0.17.0_darwin_amd64.tar.gz",
-      "sha256": "2ba4ae6426ad3230a3c5d8261797ce46eb3c3b945153c036026c2450f5455eba",
+      "asset": "skillguard_0.17.1_darwin_amd64.tar.gz",
+      "sha256": "df6669b6b684ac811baf09121421c04fba6fe562607b78b8ead4e5523c007702",
       "binary": "skillguard"
     },
     "darwin_arm64": {
       "platform": "darwin_arm64",
-      "asset": "skillguard_0.17.0_darwin_arm64.tar.gz",
-      "sha256": "7f2fa4ad30e59001e28ee076ed3778361ebe6f5087c5d09d9c79b5d4897e3643",
+      "asset": "skillguard_0.17.1_darwin_arm64.tar.gz",
+      "sha256": "dcafd97eb29984c15fb3346ca0913c3c1369f76782418d5f1448b3abc751fe71",
       "binary": "skillguard"
     },
     "linux_amd64": {
       "platform": "linux_amd64",
-      "asset": "skillguard_0.17.0_linux_amd64.tar.gz",
-      "sha256": "6824aea3805a4282d611c6b2f93fbc82aeaa9d9b8263bf72b3726b0855d70dd0",
+      "asset": "skillguard_0.17.1_linux_amd64.tar.gz",
+      "sha256": "2453da6ac4372bffeee50810445b11b9989c2c3cf08e32f82253b196a1a69b00",
       "binary": "skillguard"
     },
     "linux_arm64": {
       "platform": "linux_arm64",
-      "asset": "skillguard_0.17.0_linux_arm64.tar.gz",
-      "sha256": "8e3435ad4750967873a6f4b3505f1d33ec31ae73d82f95ed042b9f706547b223",
+      "asset": "skillguard_0.17.1_linux_arm64.tar.gz",
+      "sha256": "cc21d122f1bccc2e257a4062fc3b29e8009a9d8212f32e07861e437c75684bbd",
       "binary": "skillguard"
     },
     "windows_amd64": {
       "platform": "windows_amd64",
-      "asset": "skillguard_0.17.0_windows_amd64.tar.gz",
-      "sha256": "85995201e2e7d2704a76307bedb5855c79789021108c492e622f3a4e0cdf894f",
+      "asset": "skillguard_0.17.1_windows_amd64.tar.gz",
+      "sha256": "12ce90f35027bf90a93184a6a94dc9a8e47e225612f4de28ccbfe114532636db",
       "binary": "skillguard.exe"
     },
     "windows_arm64": {
       "platform": "windows_arm64",
-      "asset": "skillguard_0.17.0_windows_arm64.tar.gz",
-      "sha256": "ae76395cb28ede6e557b154c582afc70a2f666c1ff9b71ea5d9a0bea166d2ca7",
+      "asset": "skillguard_0.17.1_windows_arm64.tar.gz",
+      "sha256": "a8e0f7843d0edc6d0a4a95e952e736c9d41e5536a3020c65cca8c7d51b6f8d9f",
       "binary": "skillguard.exe"
     }
   }
