@@ -22,6 +22,7 @@ Registering an MCP scanner or asking an agent to scan does not enforce use.
 | Guide                                               | Covers                                                                    |
 | --------------------------------------------------- | ------------------------------------------------------------------------- |
 | [Supply-chain protections](agent-supply-chain.md)   | Threat model, delivered layers and mitigation limits                      |
+| [Finding locations](finding-locations.md) | Original-file line/column positions, output fields and location limits |
 | [Command extraction](command-extraction.md)         | Supported inputs and command syntax, references, limits and coverage gaps |
 | [Reference verification](reference-verification.md) | Explicit registry/DNS policy, disclosure boundaries and uncertainty       |
 | [Action assessment](action-assessment.md)           | Versioned requests, policies, decisions, reviews and context bindings     |

@@ -257,6 +257,8 @@ func (s *Scorer) Analyze(path string, metadata *model.SkillMetadata, body string
 	result.Findings = append(result.Findings, s.checkTelemetry(body)...)
 	result.Findings = append(result.Findings, s.checkHiddenCharacters(body)...)
 
+	anchorFindings(result, metadata.BodyStart)
+
 	if len(metadata.ReferencedFiles) > 0 {
 		referencedFindings := s.analyzeReferencedScripts(path, metadata.ReferencedFiles)
 		result.Findings = append(result.Findings, referencedFindings...)
@@ -268,6 +270,11 @@ func (s *Scorer) Analyze(path string, metadata *model.SkillMetadata, body string
 }
 
 func (s *Scorer) AnalyzeReference(path string, body string) *model.AnalysisResult {
+	return s.AnalyzeReferenceAt(path, body, model.SourcePosition{Line: 1, Column: 1})
+}
+
+// AnalyzeReferenceAt maps findings from a parsed body back to its original input.
+func (s *Scorer) AnalyzeReferenceAt(path string, body string, start model.SourcePosition) *model.AnalysisResult {
 	name := filepath.Base(path)
 	if ext := filepath.Ext(name); ext != "" {
 		name = strings.TrimSuffix(name, ext)
@@ -290,6 +297,7 @@ func (s *Scorer) AnalyzeReference(path string, body string) *model.AnalysisResul
 	result.Findings = append(result.Findings, s.checkHiddenCharacters(body)...)
 	result.Findings = append(result.Findings, s.checkInjectedInstructions(body)...)
 
+	anchorFindings(result, start)
 	s.finalize(result)
 
 	return result
@@ -496,6 +504,7 @@ func (s *Scorer) checkToolAccess(m *model.SkillMetadata) []model.Finding {
 
 	for _, tool := range m.AllowedTools {
 		toolLower := strings.ToLower(tool)
+		position := m.ToolPositions[tool]
 
 		if strings.Contains(toolLower, "*") {
 			findings = append(findings, model.Finding{
@@ -503,6 +512,8 @@ func (s *Scorer) checkToolAccess(m *model.SkillMetadata) []model.Finding {
 				Severity:    model.SeverityHigh,
 				Description: "Unrestricted tool access with wildcard: " + tool,
 				Pattern:     tool,
+				Line:        position.Line,
+				Column:      position.Column,
 				ScoreCat:    model.CatQuality,
 			})
 		} else if strings.Contains(toolLower, "bash") || strings.Contains(toolLower, "shell") || strings.Contains(toolLower, "exec") {
@@ -511,6 +522,8 @@ func (s *Scorer) checkToolAccess(m *model.SkillMetadata) []model.Finding {
 				Severity:    model.SeverityHigh,
 				Description: "Shell/command execution tool: " + tool,
 				Pattern:     tool,
+				Line:        position.Line,
+				Column:      position.Column,
 				ScoreCat:    model.CatQuality,
 			})
 		}
@@ -523,12 +536,15 @@ func (s *Scorer) checkShellExecution(body string) []model.Finding {
 	var findings []model.Finding
 
 	for _, pattern := range shellPatterns {
-		if pattern.MatchString(body) {
+		if match := pattern.FindStringIndex(body); match != nil {
+			position := model.PositionAt(body, match[0])
 			findings = append(findings, model.Finding{
 				Category:    model.CategoryShellExecution,
 				Severity:    model.SeverityHigh,
 				Description: "Shell command execution pattern detected",
 				Pattern:     pattern.String(),
+				Line:        position.Line,
+				Column:      position.Column,
 				ScoreCat:    model.CatSecurity,
 			})
 			break
@@ -542,12 +558,15 @@ func (s *Scorer) checkFileAccess(body string) []model.Finding {
 	var findings []model.Finding
 
 	for _, pattern := range filePatterns {
-		if pattern.MatchString(body) {
+		if match := pattern.FindStringIndex(body); match != nil {
+			position := model.PositionAt(body, match[0])
 			findings = append(findings, model.Finding{
 				Category:    model.CategoryFileAccess,
 				Severity:    model.SeverityHigh,
 				Description: "File write/delete operation detected",
 				Pattern:     pattern.String(),
+				Line:        position.Line,
+				Column:      position.Column,
 				ScoreCat:    model.CatSecurity,
 			})
 			break
@@ -561,8 +580,18 @@ func (s *Scorer) checkNetworkAccess(body string) []model.Finding {
 	var findings []model.Finding
 	seen := make(map[string]bool)
 
-	urls := urlPattern.FindAllString(body, -1)
-	for _, url := range urls {
+	previous := 0
+	cursor := model.SourcePosition{Line: 1, Column: 1}
+	urls := urlPattern.FindAllStringIndex(body, -1)
+	for _, match := range urls {
+		url := body[match[0]:match[1]]
+		segment := body[previous:match[0]]
+		position := model.PositionAt(segment, len(segment))
+		if position.Line == 1 {
+			position.Column += cursor.Column - 1
+		}
+		position.Line += cursor.Line - 1
+		previous, cursor = match[0], position
 		url = strings.TrimRight(strings.TrimSpace(url), ".,;:!?")
 		if url == "" || seen[url] {
 			continue
@@ -576,6 +605,8 @@ func (s *Scorer) checkNetworkAccess(body string) []model.Finding {
 				Severity:    model.SeverityMedium,
 				Description: "External URL to untrusted domain: " + evidence,
 				Pattern:     evidence,
+				Line:        position.Line,
+				Column:      position.Column,
 				ScoreCat:    model.CatSecurity,
 			})
 		}
@@ -650,12 +681,15 @@ func (s *Scorer) checkCredentials(body string) []model.Finding {
 	var findings []model.Finding
 
 	for _, pattern := range credentialPatterns {
-		if pattern.MatchString(body) {
+		if match := pattern.FindStringIndex(body); match != nil {
+			position := model.PositionAt(body, match[0])
 			findings = append(findings, model.Finding{
 				Category:    model.CategoryCredentials,
 				Severity:    model.SeverityHigh,
 				Description: "Potential credential or secret reference detected",
 				Pattern:     pattern.String(),
+				Line:        position.Line,
+				Column:      position.Column,
 				ScoreCat:    model.CatSecurity,
 			})
 			break
@@ -669,12 +703,15 @@ func (s *Scorer) checkPromptInjection(body string) []model.Finding {
 	var findings []model.Finding
 
 	for _, pattern := range injectionPatterns {
-		if pattern.MatchString(body) {
+		if match := pattern.FindStringIndex(body); match != nil {
+			position := model.PositionAt(body, match[0])
 			findings = append(findings, model.Finding{
 				Category:    model.CategoryPromptInjection,
 				Severity:    model.SeverityMedium,
 				Description: "Potential prompt injection pattern detected",
 				Pattern:     pattern.String(),
+				Line:        position.Line,
+				Column:      position.Column,
 				ScoreCat:    model.CatTransparency,
 			})
 			break
@@ -693,12 +730,19 @@ func (s *Scorer) checkInjectedInstructions(body string) []model.Finding {
 	var findings []model.Finding
 
 	for _, pattern := range injectedInstructionPatterns {
-		if pattern.MatchString(body) {
+		if match := pattern.FindStringIndex(body); match != nil {
+			// Sentence boundaries and Markdown decoration are detector context;
+			// point to the instruction itself, not a preceding blank line.
+			evidence := body[match[0]:match[1]]
+			trimmed := strings.TrimLeft(evidence, " \t\r\n>*_\"'`-.!?")
+			position := model.PositionAt(body, match[0]+len(evidence)-len(trimmed))
 			findings = append(findings, model.Finding{
 				Category:    model.CategoryPromptInjection,
 				Severity:    model.SeverityCritical,
 				Description: "Injected instructions directed at the agent (instruction override, secrecy or coercion)",
 				Pattern:     pattern.String(),
+				Line:        position.Line,
+				Column:      position.Column,
 				ScoreCat:    model.CatSecurity,
 			})
 
@@ -706,13 +750,17 @@ func (s *Scorer) checkInjectedInstructions(body string) []model.Finding {
 		}
 	}
 
-	for _, comment := range htmlCommentPattern.FindAllString(body, -1) {
+	for _, match := range htmlCommentPattern.FindAllStringIndex(body, -1) {
+		comment := body[match[0]:match[1]]
 		if hiddenInstructionKeywords.MatchString(comment) {
+			position := model.PositionAt(body, match[0])
 			findings = append(findings, model.Finding{
 				Category:    model.CategoryPromptInjection,
 				Severity:    model.SeverityCritical,
 				Description: "Instructions hidden in an HTML comment, where a human reviewer will not read them",
 				Pattern:     "hidden HTML comment",
+				Line:        position.Line,
+				Column:      position.Column,
 				ScoreCat:    model.CatSecurity,
 			})
 
@@ -766,12 +814,15 @@ func (s *Scorer) checkObfuscatedCode(body string) []model.Finding {
 	var findings []model.Finding
 
 	for _, pattern := range obfuscatedPatterns {
-		if pattern.MatchString(body) {
+		if match := pattern.FindStringIndex(body); match != nil {
+			position := model.PositionAt(body, match[0])
 			findings = append(findings, model.Finding{
 				Category:    model.CategoryObfuscatedCode,
 				Severity:    model.SeverityCritical,
 				Description: "Obfuscated code pattern detected (eval/Function/setTimeout)",
 				Pattern:     pattern.String(),
+				Line:        position.Line,
+				Column:      position.Column,
 				ScoreCat:    model.CatSecurity,
 			})
 			break
@@ -785,12 +836,15 @@ func (s *Scorer) checkGitDependencies(body string) []model.Finding {
 	var findings []model.Finding
 
 	for _, pattern := range gitDependencyPatterns {
-		if pattern.MatchString(body) {
+		if match := pattern.FindStringIndex(body); match != nil {
+			position := model.PositionAt(body, match[0])
 			findings = append(findings, model.Finding{
 				Category:    model.CategoryGitDependency,
 				Severity:    model.SeverityMedium,
 				Description: "Git dependency or operation detected",
 				Pattern:     pattern.String(),
+				Line:        position.Line,
+				Column:      position.Column,
 				ScoreCat:    model.CatSupplyChain,
 			})
 			break
@@ -804,12 +858,15 @@ func (s *Scorer) checkHttpDependencies(body string) []model.Finding {
 	var findings []model.Finding
 
 	for _, pattern := range httpDependencyPatterns {
-		if pattern.MatchString(body) {
+		if match := pattern.FindStringIndex(body); match != nil {
+			position := model.PositionAt(body, match[0])
 			findings = append(findings, model.Finding{
 				Category:    model.CategoryExternalScripts,
 				Severity:    model.SeverityCritical,
 				Description: "HTTP dependency with code execution risk detected",
 				Pattern:     pattern.String(),
+				Line:        position.Line,
+				Column:      position.Column,
 				ScoreCat:    model.CatSupplyChain,
 			})
 			break
@@ -823,12 +880,15 @@ func (s *Scorer) checkTelemetry(body string) []model.Finding {
 	var findings []model.Finding
 
 	for _, pattern := range telemetryPatterns {
-		if pattern.MatchString(body) {
+		if match := pattern.FindStringIndex(body); match != nil {
+			position := model.PositionAt(body, match[0])
 			findings = append(findings, model.Finding{
 				Category:    model.CategoryTelemetry,
 				Severity:    model.SeverityLow,
 				Description: "Potential telemetry or analytics detected",
 				Pattern:     pattern.String(),
+				Line:        position.Line,
+				Column:      position.Column,
 				ScoreCat:    model.CatMaintenance,
 			})
 			break
@@ -842,13 +902,16 @@ func (s *Scorer) checkHiddenCharacters(body string) []model.Finding {
 	var findings []model.Finding
 
 	for _, pattern := range hiddenCharPatterns {
-		matches := pattern.FindAllString(body, -1)
+		matches := pattern.FindAllStringIndex(body, -1)
 		if len(matches) > 0 {
+			position := model.PositionAt(body, matches[0][0])
 			findings = append(findings, model.Finding{
 				Category:    model.CategoryHiddenChars,
 				Severity:    model.SeverityHigh,
 				Description: "Hidden characters detected (zero-width, control chars)",
 				Pattern:     fmt.Sprintf("Found %d hidden character(s)", len(matches)),
+				Line:        position.Line,
+				Column:      position.Column,
 				ScoreCat:    model.CatSecurity,
 			})
 
@@ -856,22 +919,28 @@ func (s *Scorer) checkHiddenCharacters(body string) []model.Finding {
 		}
 	}
 
-	if bidi := bidiPattern.FindAllString(body, -1); len(bidi) > 0 {
+	if bidi := bidiPattern.FindAllStringIndex(body, -1); len(bidi) > 0 {
+		position := model.PositionAt(body, bidi[0][0])
 		findings = append(findings, model.Finding{
 			Category:    model.CategoryHiddenChars,
 			Severity:    model.SeverityHigh,
 			Description: "Bidirectional override characters detected (text may render differently than it reads)",
 			Pattern:     fmt.Sprintf("Found %d bidi control character(s)", len(bidi)),
+			Line:        position.Line,
+			Column:      position.Column,
 			ScoreCat:    model.CatSecurity,
 		})
 	}
 
 	if count, ok := detectMixedScript(body); ok {
+		position := model.PositionAt(body, confusableScriptPattern.FindStringIndex(body)[0])
 		findings = append(findings, model.Finding{
 			Category:    model.CategoryHiddenChars,
 			Severity:    model.SeverityMedium,
 			Description: "Mixed-script characters detected (Cyrillic/Greek lookalikes in Latin text)",
 			Pattern:     fmt.Sprintf("Found %d confusable character(s)", count),
+			Line:        position.Line,
+			Column:      position.Column,
 			ScoreCat:    model.CatSecurity,
 		})
 	}
@@ -964,15 +1033,19 @@ func (s *Scorer) scanScriptContent(scriptFile, scriptPath, content string) []mod
 
 	for _, check := range checks {
 		for _, pattern := range check.patterns {
-			if !pattern.MatchString(content) {
+			match := pattern.FindStringIndex(content)
+			if match == nil {
 				continue
 			}
 
+			position := model.PositionAt(content, match[0])
 			findings = append(findings, model.Finding{
 				Category:    check.category,
 				Severity:    check.severity,
 				Description: check.description + scriptFile,
 				Pattern:     pattern.String(),
+				Line:        position.Line,
+				Column:      position.Column,
 				Location:    scriptPath,
 				ScoreCat:    check.scoreCat,
 			})
@@ -1039,4 +1112,23 @@ func readLimited(path string, max int64) (string, error) {
 	}
 
 	return string(content), nil
+}
+
+// anchorFindings preserves metadata coordinates, which already refer to the
+// original YAML, and translates body-relative coordinates before score copies.
+func anchorFindings(result *model.AnalysisResult, start model.SourcePosition) {
+	if start.Line == 0 {
+		start = model.SourcePosition{Line: 1, Column: 1}
+	}
+	for i := range result.Findings {
+		f := &result.Findings[i]
+		f.Location = result.FilePath
+		if f.Line == 0 || f.Category == model.CategoryToolAccess {
+			continue
+		}
+		if f.Line == 1 {
+			f.Column += start.Column - 1
+		}
+		f.Line += start.Line - 1
+	}
 }
