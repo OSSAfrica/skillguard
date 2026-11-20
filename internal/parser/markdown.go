@@ -25,13 +25,32 @@ type Frontmatter struct {
 	Description   string      `yaml:"description"`
 	AllowedTools  interface{} `yaml:"allowed-tools"` // string or []string
 	Source        string      `yaml:"source"`
-	Triggers      []string    `yaml:"triggers"`
+	Triggers      stringList  `yaml:"triggers"`
 	Location      string      `yaml:"location"`
 	bodyStart     model.SourcePosition
 	toolPositions map[string]model.SourcePosition
 }
 
-func parseAllowedTools(v interface{}) []string {
+// stringList decodes a frontmatter field written as either a YAML list or a
+// comma-separated scalar. Other node kinds stay decode errors so a malformed
+// field reaches the caller as invalid YAML instead of an empty list.
+type stringList []string
+
+func (l *stringList) UnmarshalYAML(value *yaml.Node) error {
+	if value.Kind == yaml.ScalarNode {
+		*l = parseStringList(value.Value)
+		return nil
+	}
+
+	var items []string
+	if err := value.Decode(&items); err != nil {
+		return err
+	}
+	*l = items
+	return nil
+}
+
+func parseStringList(v interface{}) []string {
 	if v == nil {
 		return nil
 	}
@@ -81,9 +100,9 @@ func ParseSkillText(path, content string) (*model.SkillMetadata, string, error) 
 		BodyStart:     frontmatter.bodyStart,
 		ToolPositions: frontmatter.toolPositions,
 		Description:   frontmatter.Description,
-		AllowedTools:  parseAllowedTools(frontmatter.AllowedTools),
+		AllowedTools:  parseStringList(frontmatter.AllowedTools),
 		Source:        frontmatter.Source,
-		Triggers:      frontmatter.Triggers,
+		Triggers:      []string(frontmatter.Triggers),
 		Location:      path,
 	}
 
@@ -366,7 +385,7 @@ func toolPositions(document *yaml.Node, yamlLine int) map[string]model.SourcePos
 			}
 			tools := []string{node.Value}
 			if value.Kind != yaml.SequenceNode {
-				tools = parseAllowedTools(node.Value)
+				tools = parseStringList(node.Value)
 			}
 			for _, tool := range tools {
 				if tool == "" {

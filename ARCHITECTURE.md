@@ -244,8 +244,8 @@ triggers: [deploy, ship]
 # Body the agent will read ...
 ```
 
-The frontmatter becomes a `model.SkillMetadata`. `allowed-tools` can be a
-comma-separated string or a YAML list. If `name` is missing, the filename is used.
+The frontmatter becomes a `model.SkillMetadata`. `allowed-tools` and `triggers` can each
+be a comma-separated string or a YAML list. If `name` is missing, the filename is used.
 Invalid YAML is an error for that file, which is then reported as a skipped warning.
 
 Reference documents go through `ExtractBodyText`, which drops any frontmatter and
