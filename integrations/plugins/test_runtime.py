@@ -119,6 +119,15 @@ class RuntimeContracts(unittest.TestCase):
             with self.assertRaisesRegex(runtime.Unavailable, 'runtime_version_mismatch'):
                 runtime.status(self.base/'binary', self.lock)
 
+    def test_unreadable_version_metadata_preserves_original_failure(self):
+        with patch.object(runtime, 'selection', return_value=(self.lock, self.selected)), patch.object(runtime, 'location', side_effect=runtime.Unavailable('runtime_cache_inside_workspace')), patch.object(runtime, 'versions', side_effect=ValueError('invalid metadata')), patch('sys.argv', ['runtime.py', 'status']), patch('sys.stdout', new_callable=io.StringIO) as output:
+            self.assertEqual(runtime.main(), 2)
+        result = json.loads(output.getvalue())
+        self.assertEqual(result['reason'], 'runtime_cache_inside_workspace')
+        self.assertEqual(result['version_metadata'], 'unavailable')
+        self.assertFalse(result['scan_available'])
+        self.assertFalse(result['execution_authorized'])
+
     def test_redirects_cannot_downgrade_https_or_change_to_an_untrusted_host(self):
         handler = runtime.HTTPSRedirects()
         for target in ['http://github.com/archive', 'https://attacker.invalid/archive', 'file:///tmp/archive']:

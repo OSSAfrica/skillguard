@@ -210,7 +210,9 @@ def main():
             try:
                 result.update(versions(lock))
             except (OSError, ValueError, KeyError, TypeError):
-                pass
+                # Preserve the original runtime failure if version metadata is
+                # also unreadable; do not let diagnostic enrichment hide it.
+                result["version_metadata"] = "unavailable"
         print(json.dumps(result), file=sys.stderr if args.operation == "mcp" else sys.stdout)
         return 2
 
