@@ -39,19 +39,50 @@ jobs:
           verbose: true
         continue-on-error: true
 
-      - name: Verify outputs are set
-        run: |
-          echo "Default run result: ${{ steps.default.outputs.result }}"
-          echo "Output run result:  ${{ steps.with-output.outputs.result }}"
-          echo "Total skills:       ${{ steps.with-output.outputs.total_skills }}"
-          echo "Passed:             ${{ steps.with-output.outputs.passed_count }}"
-          echo "Failed:             ${{ steps.with-output.outputs.failed_count }}"
-          echo "Report path:        ${{ steps.with-output.outputs.report_path }}"
+      - name: Test action with a path that cannot be scanned
+        id: missing-path
+        uses: ./
+        with:
+          path: 'does-not-exist'
+          threshold: 70
+        continue-on-error: true
 
-          if [[ -z "${{ steps.with-output.outputs.result }}" ]]; then
-            echo "ERROR: result output was not set"
+      - name: Verify outputs are set
+        env:
+          DEFAULT_RESULT: ${{ steps.default.outputs.result }}
+          DEFAULT_TOTAL: ${{ steps.default.outputs.total_skills }}
+          DEFAULT_PASSED: ${{ steps.default.outputs.passed_count }}
+          DEFAULT_FAILED: ${{ steps.default.outputs.failed_count }}
+          DEFAULT_REPORT: ${{ steps.default.outputs.report_path }}
+          OUTPUT_RESULT: ${{ steps.with-output.outputs.result }}
+          OUTPUT_TOTAL: ${{ steps.with-output.outputs.total_skills }}
+          OUTPUT_PASSED: ${{ steps.with-output.outputs.passed_count }}
+          OUTPUT_FAILED: ${{ steps.with-output.outputs.failed_count }}
+          OUTPUT_REPORT: ${{ steps.with-output.outputs.report_path }}
+          MISSING_RESULT: ${{ steps.missing-path.outputs.result }}
+          MISSING_TOTAL: ${{ steps.missing-path.outputs.total_skills }}
+        run: |
+          echo "Default run: result=${DEFAULT_RESULT} total=${DEFAULT_TOTAL} passed=${DEFAULT_PASSED} failed=${DEFAULT_FAILED}"
+          echo "Output run:  result=${OUTPUT_RESULT} total=${OUTPUT_TOTAL} passed=${OUTPUT_PASSED} failed=${OUTPUT_FAILED}"
+          echo "Report path: ${OUTPUT_REPORT}"
+          echo "Missing run: result=${MISSING_RESULT} total=${MISSING_TOTAL}"
+
+          fail() {
+            echo "ERROR: $1"
             exit 1
-          fi
+          }
+
+          [[ -n "${OUTPUT_RESULT}" ]] || fail "result output was not set"
+          [[ -n "${DEFAULT_RESULT}" ]] || fail "result output was not set without output"
+          [[ "${DEFAULT_TOTAL}" -gt 0 ]] || fail "total_skills must be counted without output"
+          [[ "${DEFAULT_TOTAL}" == "${OUTPUT_TOTAL}" ]] || fail "total_skills differs between runs"
+          [[ "${DEFAULT_PASSED}" == "${OUTPUT_PASSED}" ]] || fail "passed_count differs between runs"
+          [[ "${DEFAULT_FAILED}" == "${OUTPUT_FAILED}" ]] || fail "failed_count differs between runs"
+          [[ -z "${DEFAULT_REPORT}" ]] || fail "report_path must be empty without output"
+          [[ "${OUTPUT_REPORT}" == "test-report.json" ]] || fail "report_path was not set"
+          [[ -f test-report.json ]] || fail "report was not copied to the workspace"
+          [[ "${MISSING_RESULT}" == "error" ]] || fail "a scan that cannot run must report result=error"
+          [[ "${MISSING_TOTAL}" == "0" ]] || fail "total_skills must be 0 without a report"
 
       - name: Upload test report
         if: always()

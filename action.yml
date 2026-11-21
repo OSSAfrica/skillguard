@@ -34,7 +34,7 @@ inputs:
 
 outputs:
   result:
-    description: 'Overall scan result: passed or failed'
+    description: 'Overall scan result: passed, failed, or error if the scan could not complete'
     value: ${{ steps.scan.outputs.result }}
   total_skills:
     description: 'Number of skills scanned'
@@ -76,57 +76,52 @@ runs:
         TEMP_DIR=$(mktemp -d)
         CONTAINER_OUTPUT="${TEMP_DIR}/skillguard-report.json"
 
-        # Run the container with output to temp directory
+        # Always write the report to the temp directory: the outputs and job
+        # summary need it even when the output input is not set. The report is
+        # only readable by its owner, so the container runs as the runner user.
         set +e
-        if [[ -n "${INPUT_OUTPUT}" ]]; then
-          docker run --rm \
-            -v "${GITHUB_WORKSPACE}:/workspace" \
-            -v "${TEMP_DIR}:/tmp" \
-            -w /workspace \
-            --user "$(id -u):$(id -g)" \
-            "${IMAGE}" \
-            scan \
-            --path "${INPUT_PATH}" \
-            --threshold "${INPUT_THRESHOLD}" \
-            --output "/tmp/skillguard-report.json" \
-            $( [[ "${INPUT_QUIET}" == "true" ]] && echo "--quiet" ) \
-            $( [[ "${INPUT_VERBOSE}" == "true" ]] && echo "--verbose" )
-        else
-          docker run --rm \
-            -v "${GITHUB_WORKSPACE}:/workspace" \
-            -w /workspace \
-            "${IMAGE}" \
-            scan \
-            --path "${INPUT_PATH}" \
-            --threshold "${INPUT_THRESHOLD}" \
-            $( [[ "${INPUT_QUIET}" == "true" ]] && echo "--quiet" ) \
-            $( [[ "${INPUT_VERBOSE}" == "true" ]] && echo "--verbose" )
-        fi
+        docker run --rm \
+          -v "${GITHUB_WORKSPACE}:/workspace" \
+          -v "${TEMP_DIR}:/tmp" \
+          -w /workspace \
+          --user "$(id -u):$(id -g)" \
+          "${IMAGE}" \
+          scan \
+          --path "${INPUT_PATH}" \
+          --threshold "${INPUT_THRESHOLD}" \
+          --output "/tmp/skillguard-report.json" \
+          $( [[ "${INPUT_QUIET}" == "true" ]] && echo "--quiet" ) \
+          $( [[ "${INPUT_VERBOSE}" == "true" ]] && echo "--verbose" )
         EXIT_CODE=$?
 
-        # Set output based on exit code
-        if [[ ${EXIT_CODE} -eq 0 ]]; then
-          echo "result=passed" >> "${GITHUB_OUTPUT}"
-        else
-          echo "result=failed" >> "${GITHUB_OUTPUT}"
-        fi
+        # 0 is a pass and 1 is a failed scan. Anything else means the scan did
+        # not complete, which must not read as skills failing the threshold.
+        case "${EXIT_CODE}" in
+          0) RESULT="passed" ;;
+          1) RESULT="failed" ;;
+          *) RESULT="error" ;;
+        esac
+        echo "result=${RESULT}" >> "${GITHUB_OUTPUT}"
 
-        # Copy the report from temp directory to workspace if output was specified
-        if [[ -n "${INPUT_OUTPUT}" && -f "${TEMP_DIR}/skillguard-report.json" ]]; then
-          # Ensure destination directory exists
-          mkdir -p "$(dirname "${GITHUB_WORKSPACE}/${INPUT_OUTPUT}")"
-        
-          cp "${TEMP_DIR}/skillguard-report.json" "${GITHUB_WORKSPACE}/${INPUT_OUTPUT}"
-          REPORT="${GITHUB_WORKSPACE}/${INPUT_OUTPUT}"
+        if [[ -f "${CONTAINER_OUTPUT}" ]]; then
           # Check for nulls
-          TOTAL=$(jq -r '.total_skills // 0' "${REPORT}" || echo "0")
-          PASSED=$(jq -r '.passed // 0' "${REPORT}" || echo "0")
-          FAILED=$(jq -r '.failed // 0' "${REPORT}" || echo "0")
+          TOTAL=$(jq -r '.total_skills // 0' "${CONTAINER_OUTPUT}" || echo "0")
+          PASSED=$(jq -r '.passed // 0' "${CONTAINER_OUTPUT}" || echo "0")
+          FAILED=$(jq -r '.failed // 0' "${CONTAINER_OUTPUT}" || echo "0")
         
           echo "total_skills=${TOTAL}" >> "${GITHUB_OUTPUT}"
           echo "passed_count=${PASSED}" >> "${GITHUB_OUTPUT}"
           echo "failed_count=${FAILED}" >> "${GITHUB_OUTPUT}"
-          echo "report_path=${INPUT_OUTPUT}" >> "${GITHUB_OUTPUT}"
+
+          # Copy the report from temp directory to workspace if output was specified
+          if [[ -n "${INPUT_OUTPUT}" ]]; then
+            # Ensure destination directory exists
+            mkdir -p "$(dirname "${GITHUB_WORKSPACE}/${INPUT_OUTPUT}")"
+            cp "${CONTAINER_OUTPUT}" "${GITHUB_WORKSPACE}/${INPUT_OUTPUT}"
+            echo "report_path=${INPUT_OUTPUT}" >> "${GITHUB_OUTPUT}"
+          else
+            echo "report_path=" >> "${GITHUB_OUTPUT}"
+          fi
           
           # Generate GitHub job summary markdown table
           if [[ -f "${TEMP_DIR}/skillguard-report.json" ]]; then
@@ -140,7 +135,12 @@ runs:
             
             echo "" >> "${GITHUB_STEP_SUMMARY}"
             echo "**Summary:** ${PASSED} passed, ${FAILED} failed out of ${TOTAL} total skills (threshold: ${INPUT_THRESHOLD})" >> "${GITHUB_STEP_SUMMARY}"
-            
+
+            if [[ "${RESULT}" == "error" ]]; then
+              echo "" >> "${GITHUB_STEP_SUMMARY}"
+              echo "⚠️ **Scan Incomplete** - Not all inputs were analyzed; see coverage_gaps in the report" >> "${GITHUB_STEP_SUMMARY}"
+            fi
+
             if [[ ${FAILED} -gt 0 ]]; then
               echo "" >> "${GITHUB_STEP_SUMMARY}"
               echo "### Failed Skills Details" >> "${GITHUB_STEP_SUMMARY}"
@@ -154,13 +154,15 @@ runs:
           echo "failed_count=0" >> "${GITHUB_OUTPUT}"
           echo "report_path=" >> "${GITHUB_OUTPUT}"
           
-          # Write basic summary when no output file specified
+          # Write basic summary when the scan produced no report
           echo "## SkillGuard Security Scan Results" >> "${GITHUB_STEP_SUMMARY}"
           echo "" >> "${GITHUB_STEP_SUMMARY}"
-          if [[ ${EXIT_CODE} -eq 0 ]]; then
+          if [[ "${RESULT}" == "passed" ]]; then
             echo "✅ **Scan Passed** - All skills meet the threshold of ${INPUT_THRESHOLD}" >> "${GITHUB_STEP_SUMMARY}"
-          else
+          elif [[ "${RESULT}" == "failed" ]]; then
             echo "❌ **Scan Failed** - One or more skills below threshold of ${INPUT_THRESHOLD}" >> "${GITHUB_STEP_SUMMARY}"
+          else
+            echo "⚠️ **Scan Error** - The scan did not complete (exit code ${EXIT_CODE})" >> "${GITHUB_STEP_SUMMARY}"
           fi
         fi
         
