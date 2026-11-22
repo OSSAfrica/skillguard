@@ -283,6 +283,7 @@ func scanInputs(paths []string, threshold int, stdin io.Reader, source string) (
 
 	scorer := analyzer.NewScorer(threshold)
 	report := &model.ScanReport{
+		Version:      Version,
 		ScanTime:     time.Now().UTC(),
 		Threshold:    threshold,
 		Results:      []model.AnalysisResult{},

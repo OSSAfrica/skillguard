@@ -130,6 +130,34 @@ func TestScanPaths_ScansEveryRequestedPath(t *testing.T) {
 	}
 }
 
+func TestScanPaths_RecordsTheSkillGuardVersion(t *testing.T) {
+	saved := Version
+	Version = "1.2.3"
+	t.Cleanup(func() { Version = saved })
+	dir := t.TempDir()
+	writeSkill(t, filepath.Join(dir, "SKILL.md"), "---\nname: one\n---\nbody\n")
+
+	report, _, err := scanPaths([]string{dir}, 70)
+	if err != nil {
+		t.Fatalf("scanPaths() error = %v", err)
+	}
+	path := filepath.Join(t.TempDir(), "report.json")
+	if err := writeJSONReport(path, report); err != nil {
+		t.Fatalf("writeJSONReport() error = %v", err)
+	}
+	data, err := os.ReadFile(path) // #nosec G304 -- test temp dir
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fields map[string]any
+	if err := json.Unmarshal(data, &fields); err != nil {
+		t.Fatalf("report is not valid JSON: %v", err)
+	}
+	if fields["skillguard_version"] != "1.2.3" {
+		t.Errorf("skillguard_version = %v, want 1.2.3", fields["skillguard_version"])
+	}
+}
+
 func TestScanPaths_ReportsAMissingPath(t *testing.T) {
 	if _, _, err := scanPaths([]string{filepath.Join(t.TempDir(), "nope")}, 70); err == nil {
 		t.Error("expected an error for a missing path")
