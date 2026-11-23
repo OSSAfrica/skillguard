@@ -355,15 +355,15 @@ however well the rest scores.
 
 ## 6. Reporting
 
-`scanInputs` gathers every `AnalysisResult` into a `model.ScanReport` with totals and a
-UTC timestamp.
+`scanInputs` gathers every `AnalysisResult` into a `model.ScanReport` with totals, a
+UTC timestamp and the SkillGuard version that ran the scan.
 
 - **Terminal** (`printColoredReport`): a coloured PASS/FAIL line per file with category
   scores. Failed files show their findings. `--verbose` shows the full breakdown,
   `--quiet` shows nothing but the exit code.
 - **JSON** (`--format json` or `--output report.json`): the structured `ScanReport`,
-  including extraction and optional verification observations. Report files use `0600`
-  permissions; stdout is available without `--output`.
+  including `skillguard_version`, extraction and optional verification observations.
+  Report files use `0600` permissions; stdout is available without `--output`.
 - **Markdown** (`--format markdown`): a report for documentation or CI summaries, on
   stdout or in an output file.
 - **Warnings** for skipped paths or files are printed in yellow before the report.

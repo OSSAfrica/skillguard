@@ -97,6 +97,9 @@ type AnalysisResult struct {
 }
 
 type ScanReport struct {
+	// Version is the SkillGuard release that produced the report. Detectors
+	// change between releases, so reports are only comparable within one.
+	Version      string           `json:"skillguard_version"`
 	ScanTime     time.Time        `json:"scan_time"`
 	TotalSkills  int              `json:"total_skills"`
 	Passed       int              `json:"passed"`

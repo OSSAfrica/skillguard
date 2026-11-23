@@ -211,7 +211,9 @@ skillguard scan ./my-skills --output report.json
 skillguard scan ./my-skills --format markdown --output report.md
 ```
 
-Use `--format json` or `--format markdown` without `--output` for stdout.
+Use `--format json` or `--format markdown` without `--output` for stdout. JSON reports
+record the version that produced them in `skillguard_version`, since detectors change
+between releases.
 
 ### Verify references explicitly
 
