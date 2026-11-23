@@ -1,6 +1,17 @@
 # Release Verification Guide
 
-This guide explains how to verify the authenticity and integrity of SkillGuard releases.
+This guide explains how to compare release archives with published checksums and
+verify container signatures. A matching checksum confirms the downloaded bytes
+match the published archive; it does not establish that software is malware-free
+or notarized by Apple.
+
+## macOS security alerts
+
+If macOS blocks SkillGuard with an “Apple could not verify” warning, see the
+[macOS first-run guide](docs/macos.md). Verify the release first, then decide
+whether to approve this executable through Apple's Privacy & Security settings.
+Homebrew tap trust, Git commit signatures and container signatures do not provide
+Apple Developer ID signing or notarization for the macOS executable.
 
 ## Verifying Downloads
 
