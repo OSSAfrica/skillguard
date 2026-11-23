@@ -1,5 +1,8 @@
 FROM cgr.dev/chainguard/go@sha256:92fa6538c060088fb3aa7e87e4d4e916b7f58c6cdcb4aa25b16433e0f324dfbd AS builder
 
+# Use the patched compiler even when the pinned builder image contains an older Go.
+ENV GOTOOLCHAIN=go1.26.10
+
 ARG VERSION=dev
 
 WORKDIR /app
